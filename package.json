@@ -1,0 +1,34 @@
+{
+  "name": "uplata",
+  "version": "1.0.0",
+  "description": "Next-gen payment processor for cryptocurrencies.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "ts-node src/app.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://nicolasklier.de:3000/Nicolas/Uplata.git"
+  },
+  "keywords": [
+    "payment",
+    "crypto",
+    "processor",
+    "self",
+    "hosted"
+  ],
+  "author": "Mondei1",
+  "license": "MIT",
+  "dependencies": {
+    "body-parser": "^1.19.0",
+    "cors": "^2.8.5",
+    "express": "^4.17.1",
+    "jayson": "^3.4.4",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.1.3"
+  },
+  "devDependencies": {
+    "@types/typescript": "2.0.0"
+  }
+}
