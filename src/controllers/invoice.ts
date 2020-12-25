@@ -77,3 +77,44 @@ export async function createInvoice(req: Request, res: Response) {
     });
 
 }
+
+// GET /invoice/
+// GET /invoice/:id
+export async function getInvoice(req: Request, res: Response) {
+    const invoiceId = req.params.id;
+
+    // If an id is provided
+    if (invoiceId !== undefined) {
+        const invoice: any = await Invoice.findById(invoiceId);
+        if (invoice === null) {
+            res.status(404).send();
+            return;
+        }
+    
+        res.status(200).send(invoice);
+        return;
+    }
+
+    let skip = req.query.skip;
+    let limit = req.query.limit;
+    let sortQuery = req.query.sort;      // Either 'newest' (DESC) or 'oldest' (ASC)
+    let sort = 1;
+
+    if (skip === undefined) skip = '0';
+    if (limit === undefined || Number(limit) > 100) limit = '100';
+    if (sortQuery !== undefined) {
+        if (sortQuery === 'newest') sort = -1;
+        else if (sortQuery === 'newest') sort = 1;
+        else {
+            res.status(400).send({ message: 'Unkown sort parameter. "sort" can only be "newest" or "oldest"' });
+            return;
+        }
+    }
+
+    const invoices = await Invoice.find({})
+        .limit(Number(limit))
+        .skip(Number(skip))
+        .sort({ createdAt: sort });
+
+    res.status(200).send(invoices);
+}

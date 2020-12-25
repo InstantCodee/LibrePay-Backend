@@ -11,6 +11,7 @@ import { hashPassword, randomPepper, randomString } from './helper/crypto';
 import { InvoiceScheduler } from './helper/invoiceScheduler';
 import { User } from './models/user/user.model';
 import { invoiceRouter } from './routes/invoice';
+import { userRouter } from './routes/user';
 
 // Load .env
 dconfig({ debug: true, encoding: 'UTF-8' });
@@ -110,6 +111,7 @@ async function run() {
 
     app.get('/', (req, res) => res.status(200).send('OK'));
     app.use('/invoice', invoiceRouter);
+    app.use('/user', userRouter);
 
     app.listen(config.http.port, config.http.host, () => {
         logger.info(`HTTP server started on port ${config.http.host}:${config.http.port}`);

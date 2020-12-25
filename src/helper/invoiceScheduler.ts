@@ -51,9 +51,7 @@ export class InvoiceScheduler {
                     return;
                 }
 
-                decoded.result.vout.forEach(output => {
-                    //console.log('Output:', output.scriptPubKey);
-                    
+                decoded.result.vout.forEach(output => {                    
                     // Loop over each output and check if the address of one matches the one of an invoice.
                     this.pendingInvoices.forEach(invoice => {
                         // We found our transaction
