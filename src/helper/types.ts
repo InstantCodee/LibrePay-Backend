@@ -1,5 +1,6 @@
 export enum CryptoUnits {
     BITCOIN = 'BTC',
+    BITCOINCASH = 'BCH',
     ETHEREUM = 'ETH',
     LITECOIN = 'LTC',
     DOGECOIN = 'DOGE',
@@ -26,11 +27,4 @@ export enum PaymentStatus {
      * The payment is completed and the crypto is now available.
      */
     DONE = 2
-}
-
-export interface SellItem {
-    price: {
-        unit: number,
-        currency: 
-    }
 }
