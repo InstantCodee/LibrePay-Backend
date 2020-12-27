@@ -8,19 +8,30 @@ export interface ICart {
     quantity: number;
 }
 
+export interface IPaymentMethod {
+    method: CryptoUnits;
+    amount: number
+}
+
 export interface IInvoice extends Document {
+    selector: string;
+    
     // Available payment methods
-    // [btc, xmr, eth, doge]
-    paymentMethods: CryptoUnits[];
+    // [{ method: 'btc', amount: 0.0000105 }]
+    paymentMethods: IPaymentMethod[];
 
     // 1Kss3e9iPB9vTgWJJZ1SZNkkFKcFJXPz9t
     receiveAddress: string;
 
     paidWith?: CryptoUnits;
 
+    // Already paid amount, in case that not the entire amount was paid with once.
+    // 0.000013
+    paid?: number;
+
     // Is set when invoice got paid
     // 3b38c3a215d4e7981e1516b2dcbf76fca58911274d5d55b3d615274d6e10f2c1
-    transcationHash?: string;
+    transcationHashes?: string[];
 
     cart?: ICart[];
     totalPrice?: number;

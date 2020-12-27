@@ -1,6 +1,7 @@
-import { NativeError, Schema, SchemaTypes } from 'mongoose';
+import { Schema } from 'mongoose';
+import { socketManager } from '../../app';
 import { CryptoUnits, FiatUnits, PaymentStatus } from '../../helper/types';
-import { IInvoice } from './invoice.interface';
+import { ICart, IInvoice } from './invoice.interface';
 
 const urlRegex = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[\-;:&=\+\$,\w]+@)?[A-Za-z0-9\.\-]+|(?:www\.|[\-;:&=\+\$,\w]+@)[A-Za-z0-9\.\-]+)((?:\/[\+~%\/\.\w\-_]*)?\??(?:[\-\+=&;%@\.\w_]*)#?(?:[\.\!\/\\\w]*))?)/
 
@@ -9,16 +10,23 @@ const schemaCart = new Schema({
     name: { type: String, trim: true, required: true },
     image: { type: String, match: urlRegex, required: true },
     quantity: { type: Number, default: 1 }
-})
+}, { _id: false });
+
+const schemaPaymentMethods = new Schema({
+    method: { type: String, enum: Object.values(CryptoUnits), required: true },
+    amount: { type: Number, required: false }
+}, { _id: false });
 
 const schemaInvoice = new Schema({
-    paymentMethods: [{ type: String, enum: Object.values(CryptoUnits), default: [CryptoUnits.BITCOIN], required: true }],
+    selector: { type: String, length: 128, required: true },
+    paymentMethods: [{ type: schemaPaymentMethods, required: true }],
     receiveAddress: { type: String, required: true },
     paidWith: { type: String, enum: CryptoUnits },
-    transcationHash: { type: String, required: false },
+    paid: { type: Number, default: 0 },
+    transcationHashes: [{ type: String, required: false }],
     cart: [{ type: schemaCart, required: false }],
     totalPrice: { type: Number, required: false },
-    currency: { type: String, enum: Object.values(FiatUnits), required: false },
+    currency: { type: String, enum: Object.values(FiatUnits), required: true },
     dueBy: { type: Number, required: true },
     status: { type: Number, enum: Object.values(PaymentStatus), default: PaymentStatus.PENDING },
     email: { type: String, required: false },
@@ -31,8 +39,15 @@ const schemaInvoice = new Schema({
     versionKey: false
 });
 
+schemaInvoice.pre('validate', function(next) {
+    let self = this as IInvoice;
+    self.currency = FiatUnits[self.currency];
+
+    next();
+});
+
 // Validate values
-schemaInvoice.post('validate', function (res, next) {
+schemaInvoice.post('validate', function (doc, next) {
     let self = this as IInvoice;
     
     // If cart is undefined and price too, error.
@@ -40,19 +55,27 @@ schemaInvoice.post('validate', function (res, next) {
         next(new Error('Either cart or price has to be defined!'));
         return;
     }
+    
+    next();
+});
 
-    // If cart is provided, calculate price.
-    if (self.cart !== undefined && self.totalPrice === undefined) {
-        let totalPrice = 0;
-        
-        for (let i = 0; i < self.cart.length; i++) {
-            const item = self.cart[i];
-            totalPrice += item.price * item.quantity;
-        }
+schemaInvoice.post('save', function(doc, next) {
+    let self = this as IInvoice;
 
-        self.set({ totalPrice });
-    }
+    if (socketManager.getSocketByInvoice(self) === undefined) return;
+    socketManager.getSocketByInvoice(self).emit('status', self.status);
     next();
 })
+
+export function calculateCart(cart: ICart[]): number {
+    let totalPrice = 0;
+    
+    for (let i = 0; i < cart.length; i++) {
+        const item = cart[i];
+        totalPrice += item.price * item.quantity;
+    }
+
+    return totalPrice;
+}
 
 export { schemaInvoice }

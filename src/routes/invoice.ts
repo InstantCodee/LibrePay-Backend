@@ -4,7 +4,7 @@ import { MW_User } from "../controllers/user";
 
 const invoiceRouter = Router()
 
-invoiceRouter.get('/:id', getInvoice);
+invoiceRouter.get('/:selector', getInvoice);
 invoiceRouter.get('/', MW_User, getInvoice);
 invoiceRouter.post('/', MW_User, createInvoice);
 

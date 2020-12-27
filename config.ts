@@ -14,6 +14,10 @@ export const config: IConfig = {
     http: {
         port: 2009,
         host: "0.0.0.0"
+    },
+    transcations: {
+        // If a payment has been made and its value is this amount less, it would be still accepted.
+        acceptMargin: 0.00000001
     }
 }
 /**
@@ -33,5 +37,8 @@ export interface IConfig {
     http: {
         port: number,
         host: string
+    },
+    transcations: {
+        acceptMargin: number
     }
 }

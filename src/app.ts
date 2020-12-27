@@ -5,6 +5,8 @@ import * as express from 'express';
 import * as rpc from 'jayson';
 import * as mongoose from 'mongoose';
 import * as winston from 'winston';
+import * as socketio from 'socket.io';
+import { Server } from 'http';
 
 import { config } from '../config';
 import { hashPassword, randomPepper, randomString } from './helper/crypto';
@@ -12,6 +14,7 @@ import { InvoiceScheduler } from './helper/invoiceScheduler';
 import { User } from './models/user/user.model';
 import { invoiceRouter } from './routes/invoice';
 import { userRouter } from './routes/user';
+import { SocketManager } from './helper/socketio';
 
 // Load .env
 dconfig({ debug: true, encoding: 'UTF-8' });
@@ -23,6 +26,7 @@ export const INVOICE_SECRET = process.env.INVOICE_SECRET || "";
 
 export let rpcClient: rpc.HttpClient | undefined = undefined;
 export let invoiceScheduler: InvoiceScheduler | undefined = undefined;
+export let socketManager: SocketManager | undefined = undefined;
 
 export let logger: winston.Logger;
 
@@ -105,15 +109,22 @@ async function run() {
     invoiceScheduler = new InvoiceScheduler();
     
     const app = express();
+    const http = new Server(app);
+
+    // Socket.io
+    const io = new socketio(http);
+    socketManager = new SocketManager(io);
+
     app.use(express.json());
     app.use(cors());
     app.use(bodyParser.json({ limit: '2kb' }));
 
-    app.get('/', (req, res) => res.status(200).send('OK'));
     app.use('/invoice', invoiceRouter);
     app.use('/user', userRouter);
 
-    app.listen(config.http.port, config.http.host, () => {
+    app.get('/', (req, res) => res.status(200).send('OK'));
+
+    http.listen(config.http.port, config.http.host, () => {
         logger.info(`HTTP server started on port ${config.http.host}:${config.http.port}`);
     });
 
