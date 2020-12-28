@@ -22,7 +22,7 @@ const schemaInvoice = new Schema({
     paymentMethods: [{ type: schemaPaymentMethods, required: true }],
     paymentMethod: { type: String, enum: Object.values(CryptoUnits), required: false },
     receiveAddress: { type: String, required: false },
-    transcationHashes: { type: String, required: false },
+    transcationHash: { type: String, required: false },
     cart: [{ type: schemaCart, required: false }],
     totalPrice: { type: Number, required: false },
     currency: { type: String, enum: Object.values(FiatUnits), required: true },

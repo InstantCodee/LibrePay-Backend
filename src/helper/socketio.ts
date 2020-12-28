@@ -13,8 +13,6 @@ export class SocketManager {
     }
 
     listen() {
-        console.log("Listen");
-        
         this.io.on('connection', (socket: Socket) => {
             // The frontend sends his selector, then pick _id and put it in `socketInvoice` map.
             // Return `true` if successful and `false` if not.
@@ -29,6 +27,22 @@ export class SocketManager {
                     logger.info(`Socket ${socket.id} has subscribed to invoice ${invoice.id} (${PaymentStatus[invoice.status]})`);
                 }
             });
+
+            socket.on('subscribe', async (data: any) => {
+                if (data === undefined || data === null) {
+                    socket.emit('subscribe', false);
+                    return;
+                }
+
+                const invoice = await Invoice.findOne({ selector: data.selector });
+                if (invoice === null) {
+                    socket.emit('subscribe', false);
+                    return;
+                }
+
+                socket.join(invoice.selector);
+                socket.emit('subscribe', true);
+            })
         });
     }
 

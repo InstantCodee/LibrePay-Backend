@@ -2,9 +2,9 @@ import { Request, Response } from 'express';
 import got from 'got';
 import { config } from '../../config';
 
-import { invoiceScheduler, INVOICE_SECRET, rpcClient } from '../app';
+import { invoiceManager, INVOICE_SECRET, logger, providerManager, rpcClient } from '../app';
 import { randomString } from '../helper/crypto';
-import { CryptoUnits, FiatUnits, findCryptoBySymbol, PaymentStatus } from '../helper/types';
+import { CryptoUnits, decimalPlaces, FiatUnits, findCryptoBySymbol, PaymentStatus, roundNumber } from '../helper/types';
 import { ICart, IInvoice, IPaymentMethod } from '../models/invoice/invoice.interface';
 import { Invoice } from '../models/invoice/invoice.model';
 import { calculateCart } from '../models/invoice/invoice.schema';
@@ -24,17 +24,11 @@ export async function createInvoice(req: Request, res: Response) {
         }
     }
 
-    const paymentMethodsRaw: string[] = req.body.methods;
     const successUrl: string = req.body.successUrl;
     const cancelUrl: string = req.body.cancelUrl;
     const cart: ICart[] = req.body.cart;
     let currency: FiatUnits = req.body.currency;
     let totalPrice: number = req.body.totalPrice;
-
-    if (paymentMethodsRaw === undefined) {
-        res.status(400).send({ message: '"paymentMethods" are not provided!' });
-        return;
-    }
 
     if (successUrl === undefined) {
         res.status(400).send({ message: '"successUrl" is not provided!' });
@@ -67,7 +61,7 @@ export async function createInvoice(req: Request, res: Response) {
     // Convert coin symbol to full text in order to query Coin Gecko. eg.: ['btc', 'xmr'] => ['bitcoin', 'monero']
     let cgFormat = [];
 
-    paymentMethodsRaw.forEach(coin => {
+    config.payment.methods.forEach(coin => {
         const crypto = findCryptoBySymbol(coin);
         
         if (crypto !== undefined) {
@@ -78,15 +72,22 @@ export async function createInvoice(req: Request, res: Response) {
     const request = await got.get(`https://api.coingecko.com/api/v3/simple/price?ids=${cgFormat.join(',')}&vs_currencies=${currency.toLowerCase()}`, {
         responseType: 'json'
     });
+    console.log(request.body);
 
     // Calulate total price, if cart is provided
     if (cart !== undefined && totalPrice === undefined) {
         totalPrice = calculateCart(cart);
     }
 
-    let paymentMethods: IPaymentMethod[] = [];        
-    config.payment.methods.forEach(coin => {
-        paymentMethods.push({ method: CryptoUnits[coin.toUpperCase()], amount:  totalPrice / Number(request.body[coin][currency.toLowerCase()]) });
+    let paymentMethods: IPaymentMethod[] = [];
+    
+    cgFormat.forEach(coinFullName => {
+        console.log(coinFullName);
+        const coin = CryptoUnits[coinFullName.toUpperCase()];
+
+        paymentMethods.push({ method: coin, amount:  
+            roundNumber(totalPrice / Number(request.body[coinFullName][currency.toLowerCase()]), decimalPlaces.get(coin))
+        });
     });
 
     const dueBy = new Date(Date.now() + 1000 * 60 * 60);
@@ -131,13 +132,19 @@ export async function getInvoice(req: Request, res: Response) {
         }
 
         if(invoice.status === PaymentStatus.UNCONFIRMED || invoice.status === PaymentStatus.DONE) {
-            rpcClient.request('gettransaction', [invoice.transcationHashes[0]], (err, message) => {
+            const transaction = await providerManager.getProvider(invoice.paymentMethod).getTransaction(invoice.transcationHash);
+            try {
                 let invoiceClone: any = invoice;
-                console.log(message.result.confirmations);
+                console.log(transaction.confirmations);
                 
-                invoiceClone['confirmation'] = message.result.confirmations;
+                invoiceClone['confirmation'] = transaction.confirmations;
                 res.status(200).send(invoiceClone);
-            });
+            } catch (err) {
+                if (err) {
+                    logger.error(`There was an error while getting transaction: ${err.message}`);
+                    res.status(500).send();
+                }
+            }
         } else {
             res.status(200).send(invoice);
         }
@@ -187,6 +194,40 @@ export async function cancelInvoice(req: Request, res: Response) {
     }
 }
 
+// POST /invoice/:selector/setmethod
+export async function setPaymentMethod(req: Request, res: Response) {
+    const method: string = req.body.method;
+    const selector: string = req.params.selector;
+
+    if (method === undefined || selector === undefined) {
+        res.status(400).send();
+        return;
+    }
+
+    if (Object.values(CryptoUnits).indexOf(method.toUpperCase() as any) === -1) {
+        res.status(400).send({ message: 'Unknown payment method' });
+        return;
+    }
+
+    const invoice = await Invoice.findOne({ selector: selector });
+    if (invoice === null) {
+        res.status(404).send();
+        return;
+    }
+    
+
+    invoice.status = PaymentStatus.PENDING;
+    invoice.paymentMethod = CryptoUnits[findCryptoBySymbol(method)];
+    invoice.receiveAddress = await providerManager.getProvider(invoice.paymentMethod).getNewAddress();
+
+    await invoice.save();
+
+    res.status(200).send({
+        receiveAddress: invoice.receiveAddress
+    });
+}
+
+// GET /invoice/paymentmethods
 export async function getPaymentMethods(req: Request, res: Response) {
     res.status(200).send({ methods: config.payment.methods });
 }

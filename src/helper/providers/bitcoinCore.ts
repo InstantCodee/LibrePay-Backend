@@ -1,12 +1,11 @@
 import { Socket, Subscriber } from "zeromq";
 import { config } from "../../../config";
-import { logger, rpcClient } from "../../app";
+import { invoiceManager, logger, rpcClient } from "../../app";
 import { BackendProvider, ITransaction, IRawTransaction } from "../backendProvider";
 import { InvoiceManager } from "../invoiceManager";
 import { CryptoUnits, PaymentStatus } from "../types";
 
-export class BitcoinCore implements BackendProvider {
-    invoiceManager: InvoiceManager;
+export class Provider implements BackendProvider {
 
     private sock: Subscriber;
 
@@ -17,7 +16,14 @@ export class BitcoinCore implements BackendProvider {
     CRYPTO = CryptoUnits.BITCOIN;
 
     onEnable() {
-        logger.info('The Bitcoin Core backend is now available!');
+        this.sock = new Subscriber();
+        this.sock.connect('tcp://127.0.0.1:29000');
+        this.sock.subscribe('rawtx');
+
+        this.listener();
+        this.watchConfirmations();
+
+        //logger.info('The Bitcoin Core backend is now available!');
     }
 
     async getNewAddress(): Promise<string> {
@@ -78,18 +84,14 @@ export class BitcoinCore implements BackendProvider {
     }
 
     async listener() {
-        this.sock = new Subscriber();
-        this.sock.connect('tcp://127.0.0.1:29000');
-        this.sock.subscribe('rawtx');
-
         logger.info('Now listing for incoming transaction to any invoices ...');
         for await (const [topic, msg] of this.sock) {
             const rawtx = msg.toString('hex');
             const tx = await this.decodeRawTransaction(rawtx);
-
+            
             tx.vout.forEach(output => {                    
                 // Loop over each output and check if the address of one matches the one of an invoice.
-                this.invoiceManager.getPendingInvoices().forEach(async invoice => {
+                invoiceManager.getPendingInvoices().forEach(async invoice => {
                     if (output.scriptPubKey.addresses === undefined) return;    // Sometimes (weird) transaction don't have any addresses
 
                     // We found our transaction (https://developer.bitcoin.org/reference/rpc/decoderawtransaction.html)
@@ -107,10 +109,10 @@ export class BitcoinCore implements BackendProvider {
                             logger.info(`Sent ${output.value} BTC back to ${senderAddress}`);
                         } else {
                             invoice.status = PaymentStatus.UNCONFIRMED;
-                            invoice.transcationHashes = tx.txid;
+                            invoice.transcationHash = tx.txid;
                             invoice.save();
 
-                            this.invoiceManager.upgradeInvoice(invoice);
+                            invoiceManager.upgradeInvoice(invoice);
                         }
                     }
                 })
@@ -121,22 +123,22 @@ export class BitcoinCore implements BackendProvider {
 
     async watchConfirmations() {
         setInterval(() => {
-            this.invoiceManager.getUnconfirmedTransactions().forEach(async invoice => {
-                if (invoice.transcationHashes.length === 0) return;
+            invoiceManager.getUnconfirmedTransactions().forEach(async invoice => {
+                if (invoice.transcationHash.length === 0) return;
                 let trustworthy = true;    // Will be true if all transactions are above threshold.
 
-                for (let i = 0; i < invoice.transcationHashes.length; i++) {
-                    const transcation = invoice.transcationHashes[i];
+                for (let i = 0; i < invoice.transcationHash.length; i++) {
+                    const transcation = invoice.transcationHash;
                     
                     const tx = await this.getTransaction(transcation);
 
-                    if (this.invoiceManager.hasConfirmationChanged(invoice, tx.confirmations)) {
-                        this.invoiceManager.setConfirmationCount(invoice, tx.confirmations);
+                    if (invoiceManager.hasConfirmationChanged(invoice, tx.confirmations)) {
+                        invoiceManager.setConfirmationCount(invoice, tx.confirmations);
                     }
 
                     if (Number(tx.confirmations) > 0) {
                         logger.info(`Transaction (${transcation}) has reached more then 2 confirmations and can now be trusted!`);
-                        this.invoiceManager.removeInvoice(invoice);
+                        invoiceManager.removeInvoice(invoice);
                     } else {
                         trustworthy = false;
                         logger.debug(`Transcation (${transcation}) has not reached his threshold yet.`);

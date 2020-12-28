@@ -8,12 +8,6 @@ import { CryptoUnits } from './types';
  */
 export abstract class BackendProvider {
 
-    invoiceManager: InvoiceManager = null;
-
-    constructor (invoiceManager: InvoiceManager) {
-        this.invoiceManager = invoiceManager;
-    }
-
     /* Provider information */
     abstract readonly NAME: string;
     abstract readonly DESCRIPTION: string;

@@ -27,8 +27,9 @@ export const JWT_SECRET = process.env.JWT_SECRET || "";
 export const INVOICE_SECRET = process.env.INVOICE_SECRET || "";
 
 export let rpcClient: rpc.HttpClient | undefined = undefined;
-export let invoiceScheduler: InvoiceManager | undefined = undefined;
+export let invoiceManager: InvoiceManager | undefined = undefined;
 export let socketManager: SocketManager | undefined = undefined;
+export let providerManager: ProviderManager = undefined;
 
 export let logger: winston.Logger;
 
@@ -108,10 +109,10 @@ async function run() {
         logger.debug("At least one admin user already exists, skip.");
     }
 
-    const providerManager = new ProviderManager(resolve('./src/helper/providers'));
+    providerManager = new ProviderManager(resolve('./src/helper/providers'));
     providerManager.scan();
 
-    invoiceScheduler = new InvoiceManager();
+    invoiceManager = new InvoiceManager();
     
     const app = express();
     const http = new Server(app);

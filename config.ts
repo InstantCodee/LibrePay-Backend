@@ -25,7 +25,8 @@ export const config: IConfig = {
         methods: [
             CryptoUnits.BITCOIN,
             CryptoUnits.DOGECOIN,
-            CryptoUnits.ETHEREUM
+            CryptoUnits.ETHEREUM,
+            CryptoUnits.MONERO
         ]
     }
 }

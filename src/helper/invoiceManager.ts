@@ -21,6 +21,8 @@ export class InvoiceManager {
 
         // Get all pending transcations
         Invoice.find({ status: PaymentStatus.PENDING }).then(invoices => {
+            console.log('These are pending', invoices);
+            
             this.pendingInvoices = invoices;
         });
 
@@ -28,8 +30,6 @@ export class InvoiceManager {
         Invoice.find({ status: PaymentStatus.UNCONFIRMED }).then(invoices => {
             this.unconfirmedTranscations = invoices;
         });
-
-        this.watchConfirmations();
     }
 
     /**
@@ -74,12 +74,5 @@ export class InvoiceManager {
     setConfirmationCount(invoice: IInvoice, count: number) {
         socketManager.emitInvoiceEvent(invoice, 'confirmationUpdate', { count });
         return this.knownConfirmations.set(invoice.id, count);
-    }
-
-    /**
-     * This functions loops over each unconfirmed transaction to check if it reached "trusted" threshold.
-     */
-    private watchConfirmations() {
-        
     }
 }
