@@ -1,10 +1,7 @@
 # Socket events
 
 ## Invoice status
-### Requests
-* `subscribe` - Subscribe to a invoices progress. Returns `true` if successful.
-    * `selector` - Your selector
-
+In order to receive updates about the a specific invoice, **you have to join the room with the selector.**
 ### Events
 * `status` - Status changed (see PaymentStatus enum)
 * `confirmationUpdate` - When there is a new confirmation on the transaction

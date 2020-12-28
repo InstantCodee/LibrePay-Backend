@@ -21,6 +21,11 @@ export enum FiatUnits {
 
 export enum PaymentStatus {
     /**
+     * The invoice has been requested but the payment method has to be choosen.
+     */
+    REQUESTED = -1,
+
+    /**
      * The payment has not been yet started. The user did not initiated the transfer.
      */
     PENDING = 0,

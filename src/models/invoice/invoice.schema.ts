@@ -20,15 +20,14 @@ const schemaPaymentMethods = new Schema({
 const schemaInvoice = new Schema({
     selector: { type: String, length: 128, required: true },
     paymentMethods: [{ type: schemaPaymentMethods, required: true }],
-    receiveAddress: { type: String, required: true },
-    paidWith: { type: String, enum: CryptoUnits },
-    paid: { type: Number, default: 0 },
-    transcationHashes: [{ type: String, required: false }],
+    paymentMethod: { type: String, enum: Object.values(CryptoUnits), required: false },
+    receiveAddress: { type: String, required: false },
+    transcationHashes: { type: String, required: false },
     cart: [{ type: schemaCart, required: false }],
     totalPrice: { type: Number, required: false },
     currency: { type: String, enum: Object.values(FiatUnits), required: true },
-    dueBy: { type: Number, required: true },
-    status: { type: Number, enum: Object.values(PaymentStatus), default: PaymentStatus.PENDING },
+    dueBy: { type: Date, required: true },
+    status: { type: Number, enum: Object.values(PaymentStatus), default: PaymentStatus.REQUESTED },
     email: { type: String, required: false },
     successUrl: { type: String, match: urlRegex, required: false },
     cancelUrl: { type: String, match: urlRegex, required: false }
@@ -62,8 +61,7 @@ schemaInvoice.post('validate', function (doc, next) {
 schemaInvoice.post('save', function(doc, next) {
     let self = this as IInvoice;
 
-    if (socketManager.getSocketByInvoice(self) === undefined) return;
-    socketManager.getSocketByInvoice(self).emit('status', self.status);
+    socketManager.emitInvoiceEvent(self, 'status', self.status);
     next();
 })
 

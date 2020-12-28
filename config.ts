@@ -1,3 +1,4 @@
+import { CryptoUnits } from './src/helper/types';
 /**
  * Here you can change various settings like database credentials, http settings and more.
  * 
@@ -18,6 +19,14 @@ export const config: IConfig = {
     transcations: {
         // If a payment has been made and its value is this amount less, it would be still accepted.
         acceptMargin: 0.00000001
+    },
+    payment: {
+        // This is a list of cryptocurrencies that you want to accpet.
+        methods: [
+            CryptoUnits.BITCOIN,
+            CryptoUnits.DOGECOIN,
+            CryptoUnits.ETHEREUM
+        ]
     }
 }
 /**
@@ -40,5 +49,8 @@ export interface IConfig {
     },
     transcations: {
         acceptMargin: number
+    },
+    payment: {
+        methods: CryptoUnits[];
     }
 }

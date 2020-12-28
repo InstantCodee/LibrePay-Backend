@@ -6,15 +6,17 @@ import * as rpc from 'jayson';
 import * as mongoose from 'mongoose';
 import * as winston from 'winston';
 import * as socketio from 'socket.io';
+import { resolve } from 'path';
 import { Server } from 'http';
 
 import { config } from '../config';
 import { hashPassword, randomPepper, randomString } from './helper/crypto';
-import { InvoiceScheduler } from './helper/invoiceScheduler';
+import { InvoiceManager } from './helper/invoiceManager';
 import { User } from './models/user/user.model';
 import { invoiceRouter } from './routes/invoice';
 import { userRouter } from './routes/user';
 import { SocketManager } from './helper/socketio';
+import { ProviderManager } from './helper/providerManager';
 
 // Load .env
 dconfig({ debug: true, encoding: 'UTF-8' });
@@ -25,7 +27,7 @@ export const JWT_SECRET = process.env.JWT_SECRET || "";
 export const INVOICE_SECRET = process.env.INVOICE_SECRET || "";
 
 export let rpcClient: rpc.HttpClient | undefined = undefined;
-export let invoiceScheduler: InvoiceScheduler | undefined = undefined;
+export let invoiceScheduler: InvoiceManager | undefined = undefined;
 export let socketManager: SocketManager | undefined = undefined;
 
 export let logger: winston.Logger;
@@ -106,7 +108,10 @@ async function run() {
         logger.debug("At least one admin user already exists, skip.");
     }
 
-    invoiceScheduler = new InvoiceScheduler();
+    const providerManager = new ProviderManager(resolve('./src/helper/providers'));
+    providerManager.scan();
+
+    invoiceScheduler = new InvoiceManager();
     
     const app = express();
     const http = new Server(app);

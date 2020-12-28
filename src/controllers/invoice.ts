@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import got from 'got';
+import { config } from '../../config';
 
 import { invoiceScheduler, INVOICE_SECRET, rpcClient } from '../app';
 import { randomString } from '../helper/crypto';
@@ -62,53 +63,55 @@ export async function createInvoice(req: Request, res: Response) {
         return;
     }
 
-    rpcClient.request('getnewaddress', ['', 'bech32'], async (err, response) => {
-        if (err) throw err;
+    // Get price
+    // Convert coin symbol to full text in order to query Coin Gecko. eg.: ['btc', 'xmr'] => ['bitcoin', 'monero']
+    let cgFormat = [];
 
-        // Get price
-        // Convert coin symbol to full text in order to query Coin Gecko. eg.: ['btc', 'xmr'] => ['bitcoin', 'monero']
-        let cgFormat = [];
-
-        paymentMethodsRaw.forEach(coin => {
-            const crypto = findCryptoBySymbol(coin);
-            
-            if (crypto !== undefined) {
-                cgFormat.push(crypto.toLowerCase());
-            }
-        });
+    paymentMethodsRaw.forEach(coin => {
+        const crypto = findCryptoBySymbol(coin);
         
-        const request = await got.get(`https://api.coingecko.com/api/v3/simple/price?ids=${cgFormat.join(',')}&vs_currencies=${currency.toLowerCase()}`, {
-            responseType: 'json'
-        });
+        if (crypto !== undefined) {
+            cgFormat.push(crypto.toLowerCase());
+        }
+    });
+    
+    const request = await got.get(`https://api.coingecko.com/api/v3/simple/price?ids=${cgFormat.join(',')}&vs_currencies=${currency.toLowerCase()}`, {
+        responseType: 'json'
+    });
 
-        // Calulate total price, if cart is provided
-        if (cart !== undefined && totalPrice === undefined) {
-            totalPrice = calculateCart(cart);
+    // Calulate total price, if cart is provided
+    if (cart !== undefined && totalPrice === undefined) {
+        totalPrice = calculateCart(cart);
+    }
+
+    let paymentMethods: IPaymentMethod[] = [];        
+    config.payment.methods.forEach(coin => {
+        paymentMethods.push({ method: CryptoUnits[coin.toUpperCase()], amount:  totalPrice / Number(request.body[coin][currency.toLowerCase()]) });
+    });
+
+    const dueBy = new Date(Date.now() + 1000 * 60 * 60);
+    
+    Invoice.create({
+        selector: randomString(128),
+        paymentMethods,
+        successUrl,
+        cancelUrl,
+        cart,
+        currency,
+        totalPrice,
+        dueBy
+    }, (error, invoice: IInvoice) => {
+        if (error) {
+            res.status(500).send({error: error.message});
+            return;
         }
 
-        let paymentMethods: IPaymentMethod[] = [];        
-        Object.keys(request.body).forEach(coin => {
-            paymentMethods.push({ method: CryptoUnits[coin.toUpperCase()], amount:  totalPrice / Number(request.body[coin][currency.toLowerCase()]) });
-        });
-        
-        Invoice.create({
-            selector: randomString(128),
-            paymentMethods: paymentMethods,
-            successUrl,
-            cancelUrl,
-            cart,
-            currency,
-            totalPrice,
-            dueBy: 60,
-            receiveAddress: response.result
-        }, (error, invoice: IInvoice) => {
-            if (error) {
-                res.status(500).send({error: error.message});
-                return;
-            }
-
-            invoiceScheduler.addInvoice(invoice);
-            res.status(200).send({ id: invoice.selector });
+        //invoiceScheduler.addInvoice(invoice);
+        //res.status(200).send({ id: invoice.selector });
+        res.status(200).send({
+            methods: paymentMethods,
+            selector: invoice.selector,
+            expireDate: invoice.dueBy
         });
     });
 
@@ -167,7 +170,7 @@ export async function getInvoice(req: Request, res: Response) {
 }
 
 // DELETE /invoice/:selector
-export async function cancelPaymnet(req: Request, res: Response) {
+export async function cancelInvoice(req: Request, res: Response) {
     const selector = req.params.selector;
 
     // If an id is provided
@@ -182,4 +185,8 @@ export async function cancelPaymnet(req: Request, res: Response) {
         await invoice.save();
         return;
     }
+}
+
+export async function getPaymentMethods(req: Request, res: Response) {
+    res.status(200).send({ methods: config.payment.methods });
 }
