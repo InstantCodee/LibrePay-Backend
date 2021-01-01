@@ -1,9 +1,10 @@
-import { Socket, Subscriber } from "zeromq";
-import { config } from "../../../config";
-import { invoiceManager, logger, rpcClient } from "../../app";
-import { BackendProvider, ITransaction, IRawTransaction } from "../backendProvider";
-import { InvoiceManager } from "../invoiceManager";
-import { CryptoUnits, PaymentStatus } from "../types";
+import { Subscriber } from 'zeromq';
+
+import { config } from '../../../config';
+import { invoiceManager, logger, rpcClient } from '../../app';
+import { IInvoice } from '../../models/invoice/invoice.interface';
+import { BackendProvider, IRawTransaction, ITransaction, ITransactionDetails, ITransactionList } from '../backendProvider';
+import { CryptoUnits, PaymentStatus } from '../types';
 
 export class Provider implements BackendProvider {
 
@@ -77,7 +78,9 @@ export class Provider implements BackendProvider {
                         reject(err);
                         return;
                     }
-        
+
+                    console.log('sendToAddress:', decoded.result);
+                    
                     resolve(decoded.result.txid);
                 });
             });
@@ -89,31 +92,20 @@ export class Provider implements BackendProvider {
             const rawtx = msg.toString('hex');
             const tx = await this.decodeRawTransaction(rawtx);
             
-            tx.vout.forEach(output => {                    
+            
+            tx.vout.forEach(output => {                                    
                 // Loop over each output and check if the address of one matches the one of an invoice.
-                invoiceManager.getPendingInvoices().forEach(async invoice => {
+                invoiceManager.getPendingInvoices().forEach(async invoice => {   
                     if (output.scriptPubKey.addresses === undefined) return;    // Sometimes (weird) transaction don't have any addresses
 
+                    logger.debug(`${output.scriptPubKey.addresses} <-> ${invoice.receiveAddress}`);
                     // We found our transaction (https://developer.bitcoin.org/reference/rpc/decoderawtransaction.html)
                     if (output.scriptPubKey.addresses.indexOf(invoice.receiveAddress) !== -1) {
                         const senderAddress = output.scriptPubKey.addresses[output.scriptPubKey.addresses.indexOf(invoice.receiveAddress)];
                         logger.info(`Transcation for invoice ${invoice.id} received! (${tx.hash})`);
 
                         // Change state in database
-                        const price = invoice.paymentMethods.find((item) => { return item.method === CryptoUnits.BITCOIN }).amount;
-                        if (output.value < price - config.transcations.acceptMargin) {
-                            const left = price - output.value;
-                            logger.info(`Transcation for invoice ${invoice.id} received but there are ${left} BTC missing (${tx.hash}).`);
-
-                            const txBack = await this.sendToAddress(senderAddress, output.value, null, null, true);
-                            logger.info(`Sent ${output.value} BTC back to ${senderAddress}`);
-                        } else {
-                            invoice.status = PaymentStatus.UNCONFIRMED;
-                            invoice.transcationHash = tx.txid;
-                            invoice.save();
-
-                            invoiceManager.upgradeInvoice(invoice);
-                        }
+                        invoiceManager.validatePayment(invoice, tx.txid);
                     }
                 })
             }); 
@@ -125,32 +117,35 @@ export class Provider implements BackendProvider {
         setInterval(() => {
             invoiceManager.getUnconfirmedTransactions().forEach(async invoice => {
                 if (invoice.transcationHash.length === 0) return;
-                let trustworthy = true;    // Will be true if all transactions are above threshold.
-
-                for (let i = 0; i < invoice.transcationHash.length; i++) {
-                    const transcation = invoice.transcationHash;
-                    
-                    const tx = await this.getTransaction(transcation);
-
-                    if (invoiceManager.hasConfirmationChanged(invoice, tx.confirmations)) {
-                        invoiceManager.setConfirmationCount(invoice, tx.confirmations);
-                    }
-
-                    if (Number(tx.confirmations) > 0) {
-                        logger.info(`Transaction (${transcation}) has reached more then 2 confirmations and can now be trusted!`);
-                        invoiceManager.removeInvoice(invoice);
-                    } else {
-                        trustworthy = false;
-                        logger.debug(`Transcation (${transcation}) has not reached his threshold yet.`);
-                    }
-                }
-
-                if (trustworthy) {
-                    invoice.status = PaymentStatus.DONE;
-                    invoice.save(); // This will trigger a post save hook that will notify the user.
-                }
+                const transcation = invoice.transcationHash;
+                
+                const tx = await this.getTransaction(transcation);
+                invoiceManager.setConfirmationCount(invoice, tx.confirmations);                
             });
         }, 2_000);
+    }
+    
+    async validateInvoices(invoices: IInvoice[]) {
+        invoices.forEach(async invoice => {
+            if (invoice.status === PaymentStatus.DONE || invoice.status === PaymentStatus.CANCELLED) return;
+            if (invoice.paymentMethod !== CryptoUnits.BITCOIN) return;
+
+            rpcClient.request('listreceivedbyaddress', [0, false, false, invoice.receiveAddress], async (err, message) => {
+                if (err) {
+                    logger.error(`There was an error while getting transcations of address ${invoice.receiveAddress}: ${err.message}`);
+                    return;
+                }
+
+                const res = message.result[0] as ITransactionList;
+                if (res === undefined) return;
+
+                console.log(res);                
+
+                res.txids.forEach(async tx => {
+                    invoiceManager.validatePayment(invoice, tx);
+                });
+            });
+        });
     }
 }
 

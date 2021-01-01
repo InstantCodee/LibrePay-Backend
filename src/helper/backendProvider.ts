@@ -1,3 +1,4 @@
+import { IInvoice } from '../models/invoice/invoice.interface';
 import { InvoiceManager } from './invoiceManager';
 import { CryptoUnits } from './types';
 
@@ -68,6 +69,26 @@ export abstract class BackendProvider {
      * Keep track of unconfirmed transactions.
      */
     abstract watchConfirmations(): void;
+
+    /**
+     * Provided is an array with pending invoices that have to be check.
+     * 
+     * **Note:** It can happen that you'll get an invoice that is not
+     * intended for your cryptocurrency. Please check if invoice is
+     * made for your cryptocurrency.
+     * 
+     * *Mainly used when LibrePay starts.*
+     */
+    abstract validateInvoices(invoices: IInvoice[]): void;
+}
+
+export interface ITransactionDetails {
+    address: string;
+    category: 'send' | 'receive' | 'generate' | 'immature' | 'orphan'
+    vout: number;
+    fee: number;
+    amount: number;
+    abandoned: boolean
 }
 
 export interface ITransaction {
@@ -75,14 +96,17 @@ export interface ITransaction {
     fee: number;
     confirmations: number;
     time: number;           // Unix timestamp
-    details: {
-        address: string;
-        category: 'send' | 'receive' | 'generate' | 'immature' | 'orphan'
-        vout: number;
-        fee: number;
-        abandoned: boolean
-    }[];
+    details: ITransactionDetails[];
     hex: string;
+}
+
+// Special interface for RPC call `listreceivedbyaddress`
+export interface ITransactionList {
+    address: string;
+    amount: number;
+    confirmation: number;
+    label: string;
+    txids: string[];
 }
 
 export interface IRawTransaction {

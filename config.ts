@@ -21,13 +21,9 @@ export const config: IConfig = {
         acceptMargin: 0.00000001
     },
     payment: {
-        // This is a list of cryptocurrencies that you want to accpet.
-        methods: [
-            CryptoUnits.BITCOIN,
-            CryptoUnits.DOGECOIN,
-            CryptoUnits.ETHEREUM,
-            CryptoUnits.MONERO
-        ]
+        // This has to stay empty since it will be filled automatically in runtime.
+        // If you want to accept a specifc cryptocurrency, add a provider in src/helper/providers
+        methods: []
     }
 }
 /**

@@ -90,7 +90,7 @@ export async function createInvoice(req: Request, res: Response) {
         });
     });
 
-    const dueBy = new Date(Date.now() + 1000 * 60 * 60);
+    const dueBy = new Date(Date.now() + 1000 * 60 * 15);
     
     Invoice.create({
         selector: randomString(128),
@@ -131,23 +131,7 @@ export async function getInvoice(req: Request, res: Response) {
             return;
         }
 
-        if(invoice.status === PaymentStatus.UNCONFIRMED || invoice.status === PaymentStatus.DONE) {
-            const transaction = await providerManager.getProvider(invoice.paymentMethod).getTransaction(invoice.transcationHash);
-            try {
-                let invoiceClone: any = invoice;
-                console.log(transaction.confirmations);
-                
-                invoiceClone['confirmation'] = transaction.confirmations;
-                res.status(200).send(invoiceClone);
-            } catch (err) {
-                if (err) {
-                    logger.error(`There was an error while getting transaction: ${err.message}`);
-                    res.status(500).send();
-                }
-            }
-        } else {
-            res.status(200).send(invoice);
-        }
+        res.status(200).send(invoice);
 
         return;
     }
@@ -176,22 +160,43 @@ export async function getInvoice(req: Request, res: Response) {
     res.status(200).send(invoices);
 }
 
+// GET /invoice/:selector/confirmation
+export async function getConfirmation(req: Request, res: Response) {
+    const selector = req.params.selector;
+    
+    const invoice = await Invoice.findOne({ selector: selector });
+    if (invoice === null) {
+        res.status(404).send();
+        return;
+    }
+
+    if (invoice.status !== PaymentStatus.UNCONFIRMED) {
+        res.status(400).send({ message: 'This has no unconfirmed transaction (yet)!' });
+        return;
+    }
+
+    try {
+        const confirmation = (await providerManager.getProvider(invoice.paymentMethod).getTransaction(invoice.transcationHash)).confirmations;
+        res.status(200).send({ confirmation });
+    } catch (err) {
+        res.status(500).send();
+        logger.error(`Error while getting confirmations for: ${invoice.transcationHash}`);
+    }
+}
+
 // DELETE /invoice/:selector
 export async function cancelInvoice(req: Request, res: Response) {
     const selector = req.params.selector;
 
-    // If an id is provided
-    if (selector !== undefined) {
-        const invoice = await Invoice.findOne({ selector: selector });
-        if (invoice === null) {
-            res.status(404).send();
-            return;
-        }
-    
-        invoice.status = PaymentStatus.CANCELLED;
-        await invoice.save();
+    const invoice = await Invoice.findOne({ selector: selector });
+    if (invoice === null) {
+        res.status(404).send();
         return;
     }
+
+    invoice.status = PaymentStatus.CANCELLED;
+    await invoice.save();
+    return;
 }
 
 // POST /invoice/:selector/setmethod
@@ -221,6 +226,8 @@ export async function setPaymentMethod(req: Request, res: Response) {
     invoice.receiveAddress = await providerManager.getProvider(invoice.paymentMethod).getNewAddress();
 
     await invoice.save();
+    
+    invoiceManager.addInvoice(invoice)
 
     res.status(200).send({
         receiveAddress: invoice.receiveAddress

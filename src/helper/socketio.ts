@@ -47,7 +47,7 @@ export class SocketManager {
     }
 
     emitInvoiceEvent(invoice: IInvoice, event: string, data: any) {
-        logger.debug(`Broadcast ${data} to room ${invoice.selector}`);
+        logger.debug(`Broadcast ${JSON.stringify(data)} to room ${invoice.selector}`);
         this.io.to(invoice.selector).emit(event, data);
     }
 }

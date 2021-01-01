@@ -1,5 +1,6 @@
 import { readdirSync } from 'fs';
 import { join } from 'path';
+import { config } from '../../config';
 import { invoiceManager, logger } from '../app';
 import { BackendProvider } from './backendProvider';
 import { CryptoUnits } from './types';
@@ -38,6 +39,7 @@ export class ProviderManager {
             }
 
             this.cryptoProvider.set(provider.CRYPTO, provider);
+            config.payment.methods.push(provider.CRYPTO);
             
             // Execute onEnable() function of this provider
             provider.onEnable();

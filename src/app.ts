@@ -37,6 +37,7 @@ async function run() {
     const { combine, timestamp, label, printf, prettyPrint } = winston.format;
 
     const myFormat = printf(({ level, message, label, timestamp }) => {
+        if (label !== undefined) return `${timestamp} ${level} (${label}) ${message}`;
         return `${timestamp} ${level} ${message}`;
     });
 

@@ -31,6 +31,9 @@ export interface IInvoice extends Document {
     // 3b38c3a215d4e7981e1516b2dcbf76fca58911274d5d55b3d615274d6e10f2c1
     transcationHash?: string;
 
+    // Is provided when transaction is unconfirmed
+    confirmation?: number;
+
     cart?: ICart[];
     totalPrice?: number;
     currency: FiatUnits;

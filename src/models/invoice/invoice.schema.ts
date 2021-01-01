@@ -58,12 +58,12 @@ schemaInvoice.post('validate', function (doc, next) {
     next();
 });
 
-schemaInvoice.post('save', function(doc, next) {
-    let self = this as IInvoice;
-
-    socketManager.emitInvoiceEvent(self, 'status', self.status);
+function updateStatus(doc: IInvoice, next) {
+    socketManager.emitInvoiceEvent(doc, 'status', doc.status);
     next();
-})
+}
+
+schemaInvoice.post('save', updateStatus);
 
 export function calculateCart(cart: ICart[]): number {
     let totalPrice = 0;
