@@ -79,7 +79,7 @@ export abstract class BackendProvider {
      * 
      * *Mainly used when LibrePay starts.*
      */
-    abstract validateInvoices(invoices: IInvoice[]): void;
+    abstract validateInvoice(invoices: IInvoice): void;
 }
 
 export interface ITransactionDetails {

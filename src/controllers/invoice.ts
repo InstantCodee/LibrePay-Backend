@@ -72,7 +72,6 @@ export async function createInvoice(req: Request, res: Response) {
     const request = await got.get(`https://api.coingecko.com/api/v3/simple/price?ids=${cgFormat.join(',')}&vs_currencies=${currency.toLowerCase()}`, {
         responseType: 'json'
     });
-    console.log(request.body);
 
     // Calulate total price, if cart is provided
     if (cart !== undefined && totalPrice === undefined) {
@@ -82,15 +81,13 @@ export async function createInvoice(req: Request, res: Response) {
     let paymentMethods: IPaymentMethod[] = [];
     
     cgFormat.forEach(coinFullName => {
-        console.log(coinFullName);
         const coin = CryptoUnits[coinFullName.toUpperCase()];
+        const exRate = Number(request.body[coinFullName][currency.toLowerCase()]);
 
-        paymentMethods.push({ method: coin, amount:  
-            roundNumber(totalPrice / Number(request.body[coinFullName][currency.toLowerCase()]), decimalPlaces.get(coin))
-        });
+        paymentMethods.push({ exRate, method: coin, amount: roundNumber(totalPrice / exRate, decimalPlaces.get(coin))});
     });
 
-    const dueBy = new Date(Date.now() + 1000 * 60 * 15);
+    const dueBy = new Date(Date.now() + 1000 * 60 * 15);    
     
     Invoice.create({
         selector: randomString(128),
@@ -103,7 +100,7 @@ export async function createInvoice(req: Request, res: Response) {
         dueBy
     }, (error, invoice: IInvoice) => {
         if (error) {
-            res.status(500).send({error: error.message});
+            res.status(500).send({message: error.message});
             return;
         }
 
@@ -219,7 +216,6 @@ export async function setPaymentMethod(req: Request, res: Response) {
         res.status(404).send();
         return;
     }
-    
 
     invoice.status = PaymentStatus.PENDING;
     invoice.paymentMethod = CryptoUnits[findCryptoBySymbol(method)];

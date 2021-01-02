@@ -1,5 +1,5 @@
 import { Schema } from 'mongoose';
-import { socketManager } from '../../app';
+import { invoiceManager, socketManager } from '../../app';
 import { CryptoUnits, FiatUnits, PaymentStatus } from '../../helper/types';
 import { ICart, IInvoice } from './invoice.interface';
 
@@ -14,7 +14,8 @@ const schemaCart = new Schema({
 
 const schemaPaymentMethods = new Schema({
     method: { type: String, enum: Object.values(CryptoUnits), required: true },
-    amount: { type: Number, required: false }
+    amount: { type: Number, required: false },
+    exRate: { type: Number, required: true },   // Exchange rate at creation
 }, { _id: false });
 
 const schemaInvoice = new Schema({
@@ -60,6 +61,12 @@ schemaInvoice.post('validate', function (doc, next) {
 
 function updateStatus(doc: IInvoice, next) {
     socketManager.emitInvoiceEvent(doc, 'status', doc.status);
+
+    // If a status has a negative value, then this invoice has failed.
+    if (doc.status < 0) {
+        invoiceManager.removeInvoice(doc);
+    }
+
     next();
 }
 

@@ -16,16 +16,13 @@ export class InvoiceManager {
         this.pendingInvoices = [];
         this.knownConfirmations = new Map<string, number>();
 
-        // Get all pending transcations
-        Invoice.find({ status: PaymentStatus.PENDING }).then(invoices => {
-            logger.info(`There are ${invoices.length} invoices pending`);
-            providerManager.getProvider(CryptoUnits.BITCOIN).validateInvoices(invoices);
-        });
+        // Get all pending and unconfirmed transcations
+        Invoice.find({ $or: [ { status: PaymentStatus.PENDING }, { status: PaymentStatus.UNCONFIRMED } ]}).then(invoices => {
+            logger.info(`There are ${invoices.length} invoices that are pending or unconfirmed`);
 
-        // Get all unconfirmed transactions
-        Invoice.find({ status: PaymentStatus.UNCONFIRMED }).then(invoices => {
-            logger.info(`There are ${invoices.length} invoices unconfirmed`);
-            providerManager.getProvider(CryptoUnits.BITCOIN).validateInvoices(invoices);
+            invoices.forEach(invoice => {
+                providerManager.getProvider(invoice.paymentMethod).validateInvoice(invoice);
+            });
         });
 
         this.expireScheduler();
@@ -36,6 +33,7 @@ export class InvoiceManager {
      */
     private expireScheduler() {
         setInterval(async () => {
+            // Find invoices that are pending or requested and reached there EOF date
             const expiredInvoices = await Invoice.find({
                 dueBy: { $lte: new Date() },
                 $or: [ { status: PaymentStatus.PENDING }, { status: PaymentStatus.REQUESTED } ]
@@ -180,7 +178,6 @@ export class InvoiceManager {
              */
             logger.warning(`Transaction (${tx}) did not sent requested funds. (sent: ${receivedTranscation.amount} BTC, requested: ${price} BTC)`);
             invoice.status = PaymentStatus.TOOLITTLE;
-            this.removeInvoice(invoice);
 
             await invoice.save();
 

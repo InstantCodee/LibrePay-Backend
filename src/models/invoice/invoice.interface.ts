@@ -10,7 +10,8 @@ export interface ICart {
 
 export interface IPaymentMethod {
     method: CryptoUnits;
-    amount: number
+    amount: number;
+    exRate: number;
 }
 
 export interface IInvoice extends Document {

@@ -1,9 +1,8 @@
 import { Subscriber } from 'zeromq';
 
-import { config } from '../../../config';
 import { invoiceManager, logger, rpcClient } from '../../app';
 import { IInvoice } from '../../models/invoice/invoice.interface';
-import { BackendProvider, IRawTransaction, ITransaction, ITransactionDetails, ITransactionList } from '../backendProvider';
+import { BackendProvider, IRawTransaction, ITransaction, ITransactionList } from '../backendProvider';
 import { CryptoUnits, PaymentStatus } from '../types';
 
 export class Provider implements BackendProvider {
@@ -78,8 +77,6 @@ export class Provider implements BackendProvider {
                         reject(err);
                         return;
                     }
-
-                    console.log('sendToAddress:', decoded.result);
                     
                     resolve(decoded.result.txid);
                 });
@@ -120,30 +117,26 @@ export class Provider implements BackendProvider {
                 const transcation = invoice.transcationHash;
                 
                 const tx = await this.getTransaction(transcation);
-                invoiceManager.setConfirmationCount(invoice, tx.confirmations);                
+                invoiceManager.setConfirmationCount(invoice, tx.confirmations);
             });
         }, 2_000);
     }
     
-    async validateInvoices(invoices: IInvoice[]) {
-        invoices.forEach(async invoice => {
-            if (invoice.status === PaymentStatus.DONE || invoice.status === PaymentStatus.CANCELLED) return;
-            if (invoice.paymentMethod !== CryptoUnits.BITCOIN) return;
+    async validateInvoice(invoice: IInvoice) {
+        if (invoice.status === PaymentStatus.DONE || invoice.status === PaymentStatus.CANCELLED) return;
+        if (invoice.paymentMethod !== CryptoUnits.BITCOIN) return;
 
-            rpcClient.request('listreceivedbyaddress', [0, false, false, invoice.receiveAddress], async (err, message) => {
-                if (err) {
-                    logger.error(`There was an error while getting transcations of address ${invoice.receiveAddress}: ${err.message}`);
-                    return;
-                }
+        rpcClient.request('listreceivedbyaddress', [0, false, false, invoice.receiveAddress], async (err, message) => {
+            if (err) {
+                logger.error(`There was an error while getting transcations of address ${invoice.receiveAddress}: ${err.message}`);
+                return;
+            }
 
-                const res = message.result[0] as ITransactionList;
-                if (res === undefined) return;
+            const res = message.result[0] as ITransactionList;
+            if (res === undefined) return;
 
-                console.log(res);                
-
-                res.txids.forEach(async tx => {
-                    invoiceManager.validatePayment(invoice, tx);
-                });
+            res.txids.forEach(async tx => {
+                invoiceManager.validatePayment(invoice, tx);
             });
         });
     }
