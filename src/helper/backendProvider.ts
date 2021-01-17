@@ -1,5 +1,4 @@
 import { IInvoice } from '../models/invoice/invoice.interface';
-import { InvoiceManager } from './invoiceManager';
 import { CryptoUnits } from './types';
 
 /**
@@ -16,14 +15,16 @@ export abstract class BackendProvider {
     abstract readonly AUTHOR: string;
 
     /**
-     * The cryptocurrency that this providers supports.
+     * The cryptocurrencies that this providers supports.
      */
-    abstract readonly CRYPTO: CryptoUnits;
+    abstract readonly CRYPTO: CryptoUnits[];
 
     /**
      * This function gets called when this provider gets activated.
+     * 
+     * @returns If `false` is returned, then the provider failed to initialize.
      */
-    abstract onEnable(): void;
+    abstract onEnable(): boolean;
 
     /**
      * Generate a new address to receive new funds.
@@ -42,7 +43,7 @@ export abstract class BackendProvider {
      * @param rawTx Raw transcation
      * @returns See https://developer.bitcoin.org/reference/rpc/decoderawtransaction.html for reference
      */
-    abstract decodeRawTransaction(rawTx: string): Promise<IRawTransaction>;
+    //abstract decodeRawTransaction(rawTx: string): Promise<IRawTransaction>;
 
     /**
      * Send funds to a specific address.

@@ -11,20 +11,20 @@ export class Provider implements BackendProvider {
     private sock: Subscriber;
     private rpcClient: rpc.HttpClient;
 
-    NAME = 'Bitcoin Core';
-    DESCRIPTION = 'This provider communicates with the Bitcoin Core application.';
+    NAME = 'Litecoin Core';
+    DESCRIPTION = 'This provider communicates with the Litecoin Core application.';
     AUTHOR = 'LibrePay Team';
     VERSION = '0.1';
-    CRYPTO = [CryptoUnits.BITCOIN];
+    CRYPTO = [CryptoUnits.LITECOIN];
 
     onEnable() {
         this.sock = new Subscriber();
-        this.sock.connect('tcp://127.0.0.1:29000');
+        this.sock.connect('tcp://127.0.0.1:40000');
         this.sock.subscribe('rawtx');
 
         
         this.rpcClient = rpc.Client.http({
-            port: 18332,
+            port: 22557,
             auth: 'admin:admin'        
         });
 
@@ -32,8 +32,6 @@ export class Provider implements BackendProvider {
         this.watchConfirmations();
 
         return true;
-
-        //logger.info('The Bitcoin Core backend is now available!');
     }
 
     async getNewAddress(): Promise<string> {
@@ -101,7 +99,7 @@ export class Provider implements BackendProvider {
             
             tx.vout.forEach(output => {                                    
                 // Loop over each output and check if the address of one matches the one of an invoice.
-                invoiceManager.getPendingInvoices().filter(item => { return item.paymentMethod === CryptoUnits.BITCOIN }).forEach(async invoice => {   
+                invoiceManager.getPendingInvoices().filter(item => { return item.paymentMethod === CryptoUnits.LITECOIN }).forEach(async invoice => {   
                     if (output.scriptPubKey.addresses === undefined) return;    // Sometimes (weird) transaction don't have any addresses
 
                     logger.debug(`${output.scriptPubKey.addresses} <-> ${invoice.receiveAddress}`);
@@ -121,7 +119,7 @@ export class Provider implements BackendProvider {
 
     async watchConfirmations() {
         setInterval(() => {
-            invoiceManager.getUnconfirmedTransactions().filter(item => { return item.paymentMethod === CryptoUnits.BITCOIN }).forEach(async invoice => {
+            invoiceManager.getUnconfirmedTransactions().filter(item => { return item.paymentMethod === CryptoUnits.LITECOIN }).forEach(async invoice => {
                 if (invoice.transcationHash.length === 0) return;
                 const transcation = invoice.transcationHash;
                 
@@ -133,7 +131,7 @@ export class Provider implements BackendProvider {
     
     async validateInvoice(invoice: IInvoice) {
         if (invoice.status === PaymentStatus.DONE || invoice.status === PaymentStatus.CANCELLED) return;
-        if (invoice.paymentMethod !== CryptoUnits.BITCOIN) return;
+        if (invoice.paymentMethod !== CryptoUnits.LITECOIN) return;
 
         this.rpcClient.request('listreceivedbyaddress', [0, false, false, invoice.receiveAddress], async (err, message) => {
             if (err) {

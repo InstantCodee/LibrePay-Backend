@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import got from 'got';
 import { config } from '../../config';
 
-import { invoiceManager, INVOICE_SECRET, logger, providerManager, rpcClient } from '../app';
+import { invoiceManager, INVOICE_SECRET, logger, providerManager } from '../app';
 import { randomString } from '../helper/crypto';
 import { CryptoUnits, decimalPlaces, FiatUnits, findCryptoBySymbol, PaymentStatus, roundNumber } from '../helper/types';
 import { ICart, IInvoice, IPaymentMethod } from '../models/invoice/invoice.interface';

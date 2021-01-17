@@ -148,7 +148,7 @@ export class InvoiceManager {
      * This method checks if a payment has been made in time and that the right amount was sent.
      */
     async validatePayment(invoice: IInvoice, tx: string): Promise<void> {
-        if (invoice.dueBy.getTime() < Date.now()) {
+        if (invoice.dueBy.getTime() < Date.now() && invoice.status <= PaymentStatus.PENDING && invoice.status >= PaymentStatus.REQUESTED) {
             invoice.status = PaymentStatus.TOOLATE;
             await invoice.save();
 

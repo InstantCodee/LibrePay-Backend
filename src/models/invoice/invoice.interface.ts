@@ -28,6 +28,9 @@ export interface IInvoice extends Document {
     // 1Kss3e9iPB9vTgWJJZ1SZNkkFKcFJXPz9t
     receiveAddress?: string;
 
+    /** This payment ID is **only available if Monero has been used**. */
+    paymentId?: string;
+
     // Is set when invoice got paid
     // 3b38c3a215d4e7981e1516b2dcbf76fca58911274d5d55b3d615274d6e10f2c1
     transcationHash?: string;

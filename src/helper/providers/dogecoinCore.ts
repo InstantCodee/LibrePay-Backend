@@ -3,7 +3,7 @@ import { Subscriber } from 'zeromq';
 import * as rpc from 'jayson';
 import { invoiceManager, logger } from '../../app';
 import { IInvoice } from '../../models/invoice/invoice.interface';
-import { BackendProvider, IRawTransaction, ITransaction, ITransactionList } from '../backendProvider';
+import { BackendProvider, IRawTransaction, ITransaction, ITransactionDetails, ITransactionList } from '../backendProvider';
 import { CryptoUnits, PaymentStatus } from '../types';
 
 export class Provider implements BackendProvider {
@@ -11,20 +11,20 @@ export class Provider implements BackendProvider {
     private sock: Subscriber;
     private rpcClient: rpc.HttpClient;
 
-    NAME = 'Bitcoin Core';
+    NAME = 'Dogecoin Core';
     DESCRIPTION = 'This provider communicates with the Bitcoin Core application.';
     AUTHOR = 'LibrePay Team';
     VERSION = '0.1';
-    CRYPTO = [CryptoUnits.BITCOIN];
+    CRYPTO = [CryptoUnits.DOGECOIN];
 
     onEnable() {
         this.sock = new Subscriber();
-        this.sock.connect('tcp://127.0.0.1:29000');
+        this.sock.connect('tcp://127.0.0.1:30000');
         this.sock.subscribe('rawtx');
 
         
         this.rpcClient = rpc.Client.http({
-            port: 18332,
+            port: 22556,
             auth: 'admin:admin'        
         });
 
@@ -38,7 +38,7 @@ export class Provider implements BackendProvider {
 
     async getNewAddress(): Promise<string> {
         return new Promise<string>((resolve, reject) => {
-            this.rpcClient.request('getnewaddress', ['', 'bech32'], async (err, message) => {
+            this.rpcClient.request('getnewaddress', [''], async (err, message) => {
                 if (err) {
                     reject(err);
                     return;
@@ -101,7 +101,7 @@ export class Provider implements BackendProvider {
             
             tx.vout.forEach(output => {                                    
                 // Loop over each output and check if the address of one matches the one of an invoice.
-                invoiceManager.getPendingInvoices().filter(item => { return item.paymentMethod === CryptoUnits.BITCOIN }).forEach(async invoice => {   
+                invoiceManager.getPendingInvoices().filter(item => { return item.paymentMethod === CryptoUnits.DOGECOIN }).forEach(async invoice => {   
                     if (output.scriptPubKey.addresses === undefined) return;    // Sometimes (weird) transaction don't have any addresses
 
                     logger.debug(`${output.scriptPubKey.addresses} <-> ${invoice.receiveAddress}`);
@@ -121,7 +121,7 @@ export class Provider implements BackendProvider {
 
     async watchConfirmations() {
         setInterval(() => {
-            invoiceManager.getUnconfirmedTransactions().filter(item => { return item.paymentMethod === CryptoUnits.BITCOIN }).forEach(async invoice => {
+            invoiceManager.getUnconfirmedTransactions().filter(item => { return item.paymentMethod === CryptoUnits.DOGECOIN }).forEach(async invoice => {
                 if (invoice.transcationHash.length === 0) return;
                 const transcation = invoice.transcationHash;
                 
@@ -133,15 +133,18 @@ export class Provider implements BackendProvider {
     
     async validateInvoice(invoice: IInvoice) {
         if (invoice.status === PaymentStatus.DONE || invoice.status === PaymentStatus.CANCELLED) return;
-        if (invoice.paymentMethod !== CryptoUnits.BITCOIN) return;
+        if (invoice.paymentMethod !== CryptoUnits.DOGECOIN) return;
 
-        this.rpcClient.request('listreceivedbyaddress', [0, false, false, invoice.receiveAddress], async (err, message) => {
+        this.rpcClient.request('listreceivedbyaddress', [0, false, false], async (err, message) => {
             if (err) {
                 logger.error(`There was an error while getting transcations of address ${invoice.receiveAddress}: ${err.message}`);
                 return;
             }
 
-            const res = message.result[0] as ITransactionList;
+            // Unfortunately we have to search the map manually.
+            const res = (message.result as ITransactionList[]).find(item => {
+                return item.address === invoice.receiveAddress;
+            }) as ITransactionList;
             if (res === undefined) return;
 
             res.txids.forEach(async tx => {

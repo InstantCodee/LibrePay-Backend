@@ -2,7 +2,6 @@ import * as bodyParser from 'body-parser';
 import * as cors from 'cors';
 import { config as dconfig } from 'dotenv';
 import * as express from 'express';
-import * as rpc from 'jayson';
 import * as mongoose from 'mongoose';
 import * as winston from 'winston';
 import * as socketio from 'socket.io';
@@ -26,7 +25,6 @@ export const MONGO_URI = process.env.MONGO_URI || "";
 export const JWT_SECRET = process.env.JWT_SECRET || "";
 export const INVOICE_SECRET = process.env.INVOICE_SECRET || "";
 
-export let rpcClient: rpc.HttpClient | undefined = undefined;
 export let invoiceManager: InvoiceManager | undefined = undefined;
 export let socketManager: SocketManager | undefined = undefined;
 export let providerManager: ProviderManager = undefined;
@@ -135,10 +133,7 @@ async function run() {
         logger.info(`HTTP server started on port ${config.http.host}:${config.http.port}`);
     });
 
-    rpcClient = rpc.Client.http({
-        port: 18332,
-        auth: 'admin:admin'        
-    });
+    
 }
 
 run();

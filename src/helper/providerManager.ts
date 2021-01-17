@@ -32,20 +32,40 @@ export class ProviderManager {
             const absolutePath = join(this.providerFilePath, file);
             const providerModule = require(absolutePath);
             const provider = new providerModule.Provider() as BackendProvider;
-            
-            if (this.cryptoProvider.has(provider.CRYPTO)) {
-                logger.warn(`Provider ${provider.NAME} will be ignored since there is already another provider active for ${provider.CRYPTO}!`);
+
+            provider.CRYPTO.forEach(crypto => {
+                if (this.cryptoProvider.has(crypto)) {
+                    logger.warn(`Provider ${provider.NAME} will be ignored since there is already another provider active for ${provider.CRYPTO}!`);
+                    return;
+                }
+    
+                this.cryptoProvider.set(crypto, provider);
+                config.payment.methods.push(crypto);
+            });
+
+            // Execute onEnable() function of this provider
+            const startUp = provider.onEnable();
+            if (!startUp) {
+                logger.error(`Provider "${provider.NAME}" by ${provider.AUTHOR} (${provider.VERSION}) failed to start! (check previous logs)`);
                 return;
             }
 
-            this.cryptoProvider.set(provider.CRYPTO, provider);
-            config.payment.methods.push(provider.CRYPTO);
-            
-            // Execute onEnable() function of this provider
-            provider.onEnable();
-
-            logger.info(`Loaded provider ${provider.NAME} by ${provider.AUTHOR} (${provider.VERSION}) for ${provider.CRYPTO}`);
+            logger.info(`Loaded provider "${provider.NAME}" by ${provider.AUTHOR} (${provider.VERSION}) for ${provider.CRYPTO.join(', ')}`);
         });
+    }
+
+    /**
+     * This provider will be no longer be used.
+     */
+    disable(providerFor: CryptoUnits) {
+        if (!this.cryptoProvider.has(providerFor)) {
+            return;
+        }
+
+        const provider = this.getProvider(providerFor);
+        logger.warn(`Provider "${provider.NAME}" will be disabled ...`);
+
+        this.cryptoProvider.delete(providerFor);
     }
 
 }
