@@ -3,7 +3,7 @@ import { Subscriber } from 'zeromq';
 import * as rpc from 'jayson';
 import { invoiceManager, logger } from '../../app';
 import { IInvoice } from '../../models/invoice/invoice.interface';
-import { BackendProvider, IRawTransaction, ITransaction, ITransactionList } from '../backendProvider';
+import { BackendProvider, IRawTransaction, ITransaction, ITransactionDetails, ITransactionList } from '../backendProvider';
 import { CryptoUnits, PaymentStatus } from '../types';
 
 export class Provider implements BackendProvider {
@@ -29,11 +29,8 @@ export class Provider implements BackendProvider {
         });
 
         this.listener();
-        this.watchConfirmations();
 
         return true;
-
-        //logger.info('The Bitcoin Core backend is now available!');
     }
 
     async getNewAddress(): Promise<string> {
@@ -49,15 +46,36 @@ export class Provider implements BackendProvider {
         });
     }
 
-    async getTransaction(txId: string): Promise<ITransaction> {
+    async getTransaction(txId: string, context?: IInvoice): Promise<ITransaction> {
         return new Promise<ITransaction>((resolve, reject) => {
             this.rpcClient.request('gettransaction', [txId], (err, message) => {
                 if (err) {
                     reject(err);
                     return;
                 }
+
+                // Calculate received funds
+                const details: ITransactionDetails[] = message.result.details;
+                let amount = 0;
+
+                if (context !== undefined) {
+                    for (let i = 0; i < details.length; i++) {
+                        if (details[i].category == 'receive' && details[i].address == context.receiveAddress) {
+                            amount += details[i].amount;
+                        }
+                    }
+                }
+
+                const ret: ITransaction = {
+                    id: message.result.txid,
+                    amount,
+                    blockhash: message.result.blockhash,
+                    confirmations: message.result.confirmations,
+                    time: message.result.time,
+                    fee: message.result.fee
+                }
     
-                resolve(message.result);
+                resolve(ret);
             });
         });
     }
@@ -107,7 +125,6 @@ export class Provider implements BackendProvider {
                     logger.debug(`${output.scriptPubKey.addresses} <-> ${invoice.receiveAddress}`);
                     // We found our transaction (https://developer.bitcoin.org/reference/rpc/decoderawtransaction.html)
                     if (output.scriptPubKey.addresses.indexOf(invoice.receiveAddress) !== -1) {
-                        const senderAddress = output.scriptPubKey.addresses[output.scriptPubKey.addresses.indexOf(invoice.receiveAddress)];
                         logger.info(`Transcation for invoice ${invoice.id} received! (${tx.hash})`);
 
                         // Change state in database
@@ -118,21 +135,8 @@ export class Provider implements BackendProvider {
             
         }
     }
-
-    async watchConfirmations() {
-        setInterval(() => {
-            invoiceManager.getUnconfirmedTransactions().filter(item => { return item.paymentMethod === CryptoUnits.BITCOIN }).forEach(async invoice => {
-                if (invoice.transcationHash.length === 0) return;
-                const transcation = invoice.transcationHash;
-                
-                const tx = await this.getTransaction(transcation);
-                invoiceManager.setConfirmationCount(invoice, tx.confirmations);
-            });
-        }, 2_000);
-    }
     
     async validateInvoice(invoice: IInvoice) {
-        if (invoice.status === PaymentStatus.DONE || invoice.status === PaymentStatus.CANCELLED) return;
         if (invoice.paymentMethod !== CryptoUnits.BITCOIN) return;
 
         this.rpcClient.request('listreceivedbyaddress', [0, false, false, invoice.receiveAddress], async (err, message) => {

@@ -1,7 +1,7 @@
 import { readdirSync } from 'fs';
 import { join } from 'path';
 import { config } from '../../config';
-import { invoiceManager, logger } from '../app';
+import { invoiceManager, logger, providerManager } from '../app';
 import { BackendProvider } from './backendProvider';
 import { CryptoUnits } from './types';
 
@@ -57,15 +57,16 @@ export class ProviderManager {
     /**
      * This provider will be no longer be used.
      */
-    disable(providerFor: CryptoUnits) {
-        if (!this.cryptoProvider.has(providerFor)) {
-            return;
-        }
-
-        const provider = this.getProvider(providerFor);
-        logger.warn(`Provider "${provider.NAME}" will be disabled ...`);
-
-        this.cryptoProvider.delete(providerFor);
+    disable(name: string) {
+        this.cryptoProvider.forEach(provider => {
+            if (provider.NAME === name) {
+                // Disable all coins that are supported by this provider.
+                provider.CRYPTO.forEach(crypto => {
+                    this.cryptoProvider.delete(crypto);
+                });
+                logger.warning(`Provider "${provider.NAME}" is now disabled.`);
+            }
+        });
     }
 
 }

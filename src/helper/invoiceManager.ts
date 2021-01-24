@@ -21,15 +21,24 @@ export class InvoiceManager {
             logger.info(`There are ${invoices.length} invoices that are pending or unconfirmed`);
 
             invoices.forEach(invoice => {
+                if (invoice.status === PaymentStatus.DONE || invoice.status === PaymentStatus.CANCELLED) {
+                    this.removeInvoice(invoice);
+                    return;
+                }
+
+                if (invoice.status === PaymentStatus.PENDING) { this.pendingInvoices.push(invoice); }
+                if (invoice.status === PaymentStatus.UNCONFIRMED) { this.unconfirmedTranscations.push(invoice); }
+
                 providerManager.getProvider(invoice.paymentMethod).validateInvoice(invoice);
             });
         });
 
         this.expireScheduler();
+        this.watchConfirmations();
     }
 
     /**
-     * This function is basicly close all invoices that have not been paid in time.
+     * This function will basicly close all invoices that have not been paid in time.
      */
     private expireScheduler() {
         setInterval(async () => {
@@ -145,7 +154,25 @@ export class InvoiceManager {
     }
 
     /**
+     * This mehtod, once started, will check every n-seconds if the confirmation
+     * count of one unconfirmed transcation has changed.
+     */
+    async watchConfirmations() {
+        setInterval(() => {
+            this.unconfirmedTranscations.forEach(async invoice => {
+                const transcation = invoice.transcationHash;
+                
+                const provider = providerManager.getProvider(invoice.paymentMethod);
+                const tx = await provider.getTransaction(transcation);
+                this.setConfirmationCount(invoice, tx.confirmations);
+            });
+        }, 2_000);
+    }
+
+    /**
      * This method checks if a payment has been made in time and that the right amount was sent.
+     * 
+     * **Only issue this method in the moment the payment has been made.**
      */
     async validatePayment(invoice: IInvoice, tx: string): Promise<void> {
         if (invoice.dueBy.getTime() < Date.now() && invoice.status <= PaymentStatus.PENDING && invoice.status >= PaymentStatus.REQUESTED) {
@@ -155,16 +182,13 @@ export class InvoiceManager {
             return; // Payment is too late
         }
 
-        const txInfo = await providerManager.getProvider(invoice.paymentMethod).getTransaction(tx);
-        const receivedTranscation = txInfo.details.find(detail => {
-            return (detail.address == invoice.receiveAddress && detail.amount > 0);    // We only want receiving transactions
-        });
+        const txInfo = await providerManager.getProvider(invoice.paymentMethod).getTransaction(tx, invoice);
         
         const price = this.getPriceByInvoice(invoice);
-        if (price === undefined) return;
+        if (price === 0) return;
 
-        // Transaction sent enough funds
-        if (receivedTranscation.amount == price || receivedTranscation.amount > price) {
+        // Sent enough funds
+        if (txInfo.amount == price || txInfo.amount > price) {
             invoice.transcationHash = tx;
             await invoice.save();
 
@@ -176,40 +200,12 @@ export class InvoiceManager {
              * know who the original sender was. Therefore if a customer sent not the right amount, he/she
              * should contact the support of the shop.
              */
-            logger.warning(`Transaction (${tx}) did not sent requested funds. (sent: ${receivedTranscation.amount} BTC, requested: ${price} BTC)`);
+            logger.warning(`Transaction (${tx}) did not sent requested funds. (sent: ${txInfo.amount}, requested: ${price})`);
             invoice.status = PaymentStatus.TOOLITTLE;
 
             await invoice.save();
 
             return;
-
-            // This is dead code and only exists because I'm yet unsure what to do with such payments.
-            let sendBack = receivedTranscation.amount;
-
-            // If the amount was too much, mark invoice as paid and try to send remaining funds back.
-            if (receivedTranscation.amount > price) {
-                sendBack = price - txInfo.amount;
-
-                // Sent amount was too much but technically the bill is paid (will get saved in upgradeInvoice)
-                invoice.transcationHash = tx;
-
-                this.upgradeInvoice(invoice);
-            }
-            
-            // We only have one input, we can be sure that the sender will receive the funds
-            if (txInfo.details.length === 1) {
-                if (txInfo.details[0].address.length !== 1) return;
-
-                const txBack = await providerManager.getProvider(invoice.paymentMethod).sendToAddress(txInfo.details[0].address[0], receivedTranscation.amount, null, null, true);
-                logger.info(`Sent ${receivedTranscation.amount} ${invoice.paymentMethod} back to ${txInfo.details[0].address[0]}: ${txBack}`);
-            } else {
-                // If we cannot send the funds back, save transaction id and mark invoice as failed.
-                invoice.transcationHash = tx;
-                invoice.status = PaymentStatus.TOOLITTLE;
-                this.removeInvoice(invoice);
-
-                await invoice.save();
-            }
         }
     }
 }

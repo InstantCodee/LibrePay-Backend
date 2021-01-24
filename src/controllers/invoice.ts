@@ -90,7 +90,7 @@ export async function createInvoice(req: Request, res: Response) {
     const dueBy = new Date(Date.now() + 1000 * 60 * 15);    
     
     Invoice.create({
-        selector: randomString(128),
+        selector: randomString(32),
         paymentMethods,
         successUrl,
         cancelUrl,

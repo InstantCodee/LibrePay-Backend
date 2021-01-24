@@ -19,7 +19,7 @@ const schemaPaymentMethods = new Schema({
 }, { _id: false });
 
 const schemaInvoice = new Schema({
-    selector: { type: String, length: 128, required: true },
+    selector: { type: String, length: 32, required: true },
     paymentMethods: [{ type: schemaPaymentMethods, required: true }],
     paymentMethod: { type: String, enum: Object.values(CryptoUnits), required: false },
     receiveAddress: { type: String, required: false },

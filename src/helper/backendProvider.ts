@@ -1,3 +1,4 @@
+import { invoiceManager, providerManager } from '../app';
 import { IInvoice } from '../models/invoice/invoice.interface';
 import { CryptoUnits } from './types';
 
@@ -34,9 +35,10 @@ export abstract class BackendProvider {
     /**
      * Get a transaction from the blockchain.
      * @param txId Hash of the transcation you're looking for.
+     * @param context Invoice for context (required to calculate correct amount)
      * @returns See https://developer.bitcoin.org/reference/rpc/gettransaction.html for reference
      */
-    abstract getTransaction(txId: string): Promise<ITransaction>;
+    abstract getTransaction(txId: string, context?: IInvoice): Promise<ITransaction | null>;
 
     /**
      * Decode a raw transcation that was broadcasted in the network.
@@ -67,11 +69,6 @@ export abstract class BackendProvider {
     abstract listener(): void;
 
     /**
-     * Keep track of unconfirmed transactions.
-     */
-    abstract watchConfirmations(): void;
-
-    /**
      * Provided is an array with pending invoices that have to be check.
      * 
      * **Note:** It can happen that you'll get an invoice that is not
@@ -93,21 +90,21 @@ export interface ITransactionDetails {
 }
 
 export interface ITransaction {
-    amount: number;
-    fee: number;
+    id: string;
+    blockhash: string;
+    amount: number;                 // Total transaction amount
+    fee?: number;
     confirmations: number;
-    time: number;           // Unix timestamp
-    details: ITransactionDetails[];
-    hex: string;
+    time: number;                   // Unix timestamp
+    details?: ITransactionDetails[]; // In-/and Outputs of an transaction
 }
 
 // Special interface for RPC call `listreceivedbyaddress`
 export interface ITransactionList {
-    address: string;
-    amount: number;
+    address: string;        // Address that performed that action
+    amount: number;         // Amount that got transfered
     confirmation: number;
-    label: string;
-    txids: string[];
+    txids?: string[];
 }
 
 export interface IRawTransaction {

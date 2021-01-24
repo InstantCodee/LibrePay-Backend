@@ -29,7 +29,6 @@ export class Provider implements BackendProvider {
         });
 
         this.listener();
-        this.watchConfirmations();
 
         return true;
 
@@ -49,15 +48,34 @@ export class Provider implements BackendProvider {
         });
     }
 
-    async getTransaction(txId: string): Promise<ITransaction> {
+    async getTransaction(txId: string, context?: IInvoice): Promise<ITransaction> {
         return new Promise<ITransaction>((resolve, reject) => {
             this.rpcClient.request('gettransaction', [txId], (err, message) => {
                 if (err) {
                     reject(err);
                     return;
                 }
+
+                // Calculate received funds
+                const details: ITransactionDetails[] = message.result.details;
+                let amount = 0;
+
+                details.forEach(detail => {
+                    if (detail.category === 'receive' && detail.address === context.receiveAddress) {
+                        amount += detail.amount;
+                    }
+                })
+
+                const ret: ITransaction = {
+                    id: message.result.txid,
+                    amount,
+                    blockhash: message.result.blockhash,
+                    confirmations: message.result.confirmations,
+                    time: message.result.time,
+                    fee: message.result.fee
+                }
     
-                resolve(message.result);
+                resolve(ret);
             });
         });
     }
@@ -118,21 +136,8 @@ export class Provider implements BackendProvider {
             
         }
     }
-
-    async watchConfirmations() {
-        setInterval(() => {
-            invoiceManager.getUnconfirmedTransactions().filter(item => { return item.paymentMethod === CryptoUnits.DOGECOIN }).forEach(async invoice => {
-                if (invoice.transcationHash.length === 0) return;
-                const transcation = invoice.transcationHash;
-                
-                const tx = await this.getTransaction(transcation);
-                invoiceManager.setConfirmationCount(invoice, tx.confirmations);
-            });
-        }, 2_000);
-    }
     
     async validateInvoice(invoice: IInvoice) {
-        if (invoice.status === PaymentStatus.DONE || invoice.status === PaymentStatus.CANCELLED) return;
         if (invoice.paymentMethod !== CryptoUnits.DOGECOIN) return;
 
         this.rpcClient.request('listreceivedbyaddress', [0, false, false], async (err, message) => {
