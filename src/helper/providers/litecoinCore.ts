@@ -18,19 +18,28 @@ export class Provider implements BackendProvider {
     CRYPTO = [CryptoUnits.LITECOIN];
 
     onEnable() {
-        this.sock = new Subscriber();
-        this.sock.connect('tcp://127.0.0.1:40000');
-        this.sock.subscribe('rawtx');
+        return new Promise<void>((resolve, reject) => {
+            this.sock = new Subscriber();
+            this.sock.connectTimeout = 2;
+            this.sock.connect('tcp://127.0.0.1:40000');
+            this.sock.subscribe('rawtx');
 
-        
-        this.rpcClient = rpc.Client.http({
-            port: 22557,
-            auth: 'admin:admin'        
+            
+            this.rpcClient = rpc.Client.http({
+                port: 22557,
+                auth: 'admin:admin'        
+            });
+
+            // We perfom a small test call to check if everything works.
+            this.rpcClient.request('getblockchaininfo', [], (err, message) => {
+                if (err) {
+                    reject(`Cannot connect with Bitcoin Core: ${err.message}`);
+                    return;
+                }
+                this.listener();
+                resolve();
+            });
         });
-
-        this.listener();
-
-        return true;
     }
 
     async getNewAddress(): Promise<string> {

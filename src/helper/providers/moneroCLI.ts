@@ -19,39 +19,38 @@ export class Provider implements BackendProvider {
     CRYPTO = [CryptoUnits.MONERO];
 
     onEnable() {
-        if (process.env.MONERO_WALLET_PASSWORD === undefined) {
-            logger.error(`Enviroment variable MONERO_WALLET_PASSWORD is required but not set!`);
-            return false;
-        }
-
-        if (process.env.MONERO_WALLET_NAME === undefined) {
-            logger.error(`Enviroment variable MONERO_WALLET_FILEPATH is required but not set!`);
-            return false;
-        }
-
-        if (process.env.MONERO_ZMQ_ADDRESS === undefined) {
-            logger.error(`Enviroment variable MONERO_ZMQ_ADDRESS is required but not set!`);
-            return false;
-        }
-
-        this.rpcClient = rpc.Client.http({
-            path: '/json_rpc',
-            port: 38085
-        });
-        this.rpcClient.request('open_wallet', {
-            filename: process.env.MONERO_WALLET_NAME,
-            password: process.env.MONERO_WALLET_PASSWORD
-        }, (err, message) => {
-            if (err) {
-                console.log(err);
-                logger.error(`Failed to open Monero wallet: ${err}\nMaybe a wrong password or path?`);
+        return new Promise<void>((resolve, reject) => {
+            if (process.env.MONERO_WALLET_PASSWORD === undefined) {
+                reject('Enviroment variable MONERO_WALLET_PASSWORD is required but not set!');
                 return;
             }
+    
+            if (process.env.MONERO_WALLET_NAME === undefined) {
+                reject('Enviroment variable MONERO_WALLET_FILEPATH is required but not set!');
+                return;
+            }
+    
+            if (process.env.MONERO_ZMQ_ADDRESS === undefined) {
+                reject('Enviroment variable MONERO_ZMQ_ADDRESS is required but not set!');
+                return;
+            }
+    
+            this.rpcClient = rpc.Client.http({
+                path: '/json_rpc',
+                port: 38085
+            });
+            this.rpcClient.request('open_wallet', {
+                filename: process.env.MONERO_WALLET_NAME,
+                password: process.env.MONERO_WALLET_PASSWORD
+            }, (err, message) => {
+                if (err) {
+                    reject(`Failed to open Monero wallet: ${err}\nMaybe a wrong password or path?`)
+                    return;
+                }
+                this.listener();
+                resolve();
+            });
         });
-
-        this.listener();
-
-        return true;
     }
 
     async listener() {

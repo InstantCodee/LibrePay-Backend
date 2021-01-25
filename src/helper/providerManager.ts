@@ -28,7 +28,7 @@ export class ProviderManager {
                 .filter(dirent => dirent.name.endsWith('.ts'))
                 .map(dirent => dirent.name)
 
-        getDirectories().forEach(file => {
+        getDirectories().forEach(async file => {
             const absolutePath = join(this.providerFilePath, file);
             const providerModule = require(absolutePath);
             const provider = new providerModule.Provider() as BackendProvider;
@@ -44,13 +44,14 @@ export class ProviderManager {
             });
 
             // Execute onEnable() function of this provider
-            const startUp = provider.onEnable();
-            if (!startUp) {
-                logger.error(`Provider "${provider.NAME}" by ${provider.AUTHOR} (${provider.VERSION}) failed to start! (check previous logs)`);
-                return;
+            try {
+                await provider.onEnable();
+                logger.info(`Loaded provider "${provider.NAME}" by ${provider.AUTHOR} (${provider.VERSION}) for ${provider.CRYPTO.join(', ')}`);
+            } catch (err) {
+                logger.error(`Provider "${provider.NAME}" by ${provider.AUTHOR} (${provider.VERSION}) failed to start: ${err}`);
+                this.disable(provider.NAME);
             }
 
-            logger.info(`Loaded provider "${provider.NAME}" by ${provider.AUTHOR} (${provider.VERSION}) for ${provider.CRYPTO.join(', ')}`);
         });
     }
 

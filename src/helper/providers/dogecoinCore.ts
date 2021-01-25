@@ -18,19 +18,27 @@ export class Provider implements BackendProvider {
     CRYPTO = [CryptoUnits.DOGECOIN];
 
     onEnable() {
-        this.sock = new Subscriber();
-        this.sock.connect('tcp://127.0.0.1:30000');
-        this.sock.subscribe('rawtx');
-
-        
-        this.rpcClient = rpc.Client.http({
-            port: 22556,
-            auth: 'admin:admin'        
+        return new Promise<void>((resolve, reject) => {
+            this.sock = new Subscriber();
+            this.sock.connectTimeout = 2;
+            this.sock.connect('tcp://127.0.0.1:30000');
+            this.sock.subscribe('rawtx');
+            
+            this.rpcClient = rpc.Client.http({
+                port: 22556,
+                auth: 'admin:admin'        
+            });
+    
+            // We perfom a small test call to check if everything works.
+            this.rpcClient.request('getblockchaininfo', [], (err, message) => {
+                if (err) {
+                    reject(`Cannot connect with Dogecoin Core: ${err.message}`);
+                    return;
+                }
+                this.listener();
+                resolve();
+            });    
         });
-
-        this.listener();
-
-        return true;
 
         //logger.info('The Bitcoin Core backend is now available!');
     }

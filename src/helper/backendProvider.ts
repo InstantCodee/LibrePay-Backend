@@ -25,7 +25,7 @@ export abstract class BackendProvider {
      * 
      * @returns If `false` is returned, then the provider failed to initialize.
      */
-    abstract onEnable(): boolean;
+    abstract onEnable(): Promise<void>;
 
     /**
      * Generate a new address to receive new funds.
