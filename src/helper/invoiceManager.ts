@@ -29,7 +29,12 @@ export class InvoiceManager {
                 if (invoice.status === PaymentStatus.PENDING) { this.pendingInvoices.push(invoice); }
                 if (invoice.status === PaymentStatus.UNCONFIRMED) { this.unconfirmedTranscations.push(invoice); }
 
-                providerManager.getProvider(invoice.paymentMethod).validateInvoice(invoice);
+                try {
+                    providerManager.getProvider(invoice.paymentMethod).validateInvoice(invoice);
+                } catch (err) {
+                    logger.debug(`Cannot validate invoice ${invoice.id} because there is no provider for ${invoice.paymentMethod}. Remove ...`);
+                    this.removeInvoice(invoice);
+                }
             });
         });
 
@@ -161,6 +166,13 @@ export class InvoiceManager {
         setInterval(() => {
             this.unconfirmedTranscations.forEach(async invoice => {
                 const transcation = invoice.transcationHash;
+
+                if (providerManager.getProvider(invoice.paymentMethod) === undefined) {
+                    logger.debug(`Cannot get confirmations of invoice ${invoice.id} because there is no provider for ${invoice.paymentMethod}. Remove ...`);
+                    this.removeInvoice(invoice);
+                    return;
+
+                }
                 
                 const provider = providerManager.getProvider(invoice.paymentMethod);
                 const tx = await provider.getTransaction(transcation);

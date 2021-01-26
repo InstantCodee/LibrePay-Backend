@@ -101,7 +101,6 @@ export class Provider implements BackendProvider {
 
                 const paymentTransaction = message.result.transfer;
                 if (paymentTransaction === undefined) {
-                    console.log(message)
                     logger.warning(`Tried to get transfer by txid but failed: ${message}`);
                     resolve(null);
                     return;
@@ -174,8 +173,6 @@ export class Provider implements BackendProvider {
                     resolve(null);
                     return;
                 }
-    
-                console.log(payment_id, message);                
     
                 // The payment has not been made yet
                 if (message.result.payments === undefined) {

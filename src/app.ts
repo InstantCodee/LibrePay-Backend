@@ -108,7 +108,10 @@ async function run() {
     }
 
     providerManager = new ProviderManager(resolve('./src/helper/providers'));
-    providerManager.scan();
+    await providerManager.scan().catch(err => {
+        logger.error(err);
+        process.exit(0);
+    });
 
     invoiceManager = new InvoiceManager();
     

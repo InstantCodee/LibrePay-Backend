@@ -80,7 +80,7 @@ export async function loginUser(req: Request, res: Response) {
         return;
     }
 
-    // Check if 2FA is turned on (the attack doesn't know yet if the password is wrong)
+    // Check if 2FA is turned on (the attacker doesn't know if the password is wrong yet)
     if (user.twoFASecret != undefined) {
         if (twoFA == undefined) {
             res.status(401).send({ message: "2FA code is required." });
@@ -135,6 +135,10 @@ export async function MW_User(req: LibrePayRequest, res: Response, next: () => v
         }
     } catch (err) {
         if (err) {
+            if (err === "jwt expired") {
+                res.status(401).send({ message: "Your token expired" });
+                return;
+            }
             res.status(500).send({ message: "We failed validating your token for some reason." });
             logger.error(err);
         }
