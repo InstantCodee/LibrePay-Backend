@@ -3,7 +3,6 @@ import { Subscriber } from 'zeromq';
 
 import { invoiceManager, logger } from '../../app';
 import { IInvoice } from '../../models/invoice/invoice.interface';
-import { Invoice } from '../../models/invoice/invoice.model';
 import { BackendProvider, ITransaction } from '../backendProvider';
 import { CryptoUnits } from '../types';
 

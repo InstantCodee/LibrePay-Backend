@@ -143,7 +143,7 @@ export class InvoiceManager {
 
             if (count > 2) {
                 logger.info(`Transaction (${invoice.transcationHash}) has reached more then 2 confirmations and can now be trusted!`);
-                const sentFunds = (await providerManager.getProvider(invoice.paymentMethod).getTransaction(invoice.transcationHash)).amount;
+                const sentFunds = (await providerManager.getProvider(invoice.paymentMethod).getTransaction(invoice.transcationHash, invoice)).amount;
                 
                 // This transaction sent more then requested funds
                 if (sentFunds > this.getPriceByInvoice(invoice)) {
@@ -175,7 +175,7 @@ export class InvoiceManager {
                 }
                 
                 const provider = providerManager.getProvider(invoice.paymentMethod);
-                const tx = await provider.getTransaction(transcation);
+                const tx = await provider.getTransaction(transcation, invoice);
                 this.setConfirmationCount(invoice, tx.confirmations);
             });
         }, 2_000);

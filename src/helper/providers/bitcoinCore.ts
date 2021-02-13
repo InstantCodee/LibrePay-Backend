@@ -122,8 +122,7 @@ export class Provider implements BackendProvider {
         for await (const [topic, msg] of this.sock) {
             const rawtx = msg.toString('hex');
             const tx = await this.decodeRawTransaction(rawtx);
-            
-            
+
             tx.vout.forEach(output => {                                    
                 // Loop over each output and check if the address of one matches the one of an invoice.
                 invoiceManager.getPendingInvoices().filter(item => { return item.paymentMethod === CryptoUnits.BITCOIN }).forEach(async invoice => {   

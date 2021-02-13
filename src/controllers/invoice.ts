@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import got from 'got';
+import { Query } from 'mongoose';
 import { config } from '../../config';
 
 import { invoiceManager, INVOICE_SECRET, logger, providerManager } from '../app';
@@ -87,7 +88,7 @@ export async function createInvoice(req: Request, res: Response) {
         paymentMethods.push({ exRate, method: coin, amount: roundNumber(totalPrice / exRate, decimalPlaces.get(coin))});
     });
 
-    const dueBy = new Date(Date.now() + 1000 * 60 * 15);    
+    const dueBy = new Date(Date.now() + 1000 * 60 * 5);    
     
     Invoice.create({
         selector: randomString(32),
@@ -133,28 +134,64 @@ export async function getInvoice(req: Request, res: Response) {
         return;
     }
 
-    let skip = req.query.skip;
-    let limit = req.query.limit;
-    let sortQuery = req.query.sort;      // Either 'newest' (DESC) or 'oldest' (ASC)
-    let sort = 1;
+    let reqSkip = req.query.skip;
+    let reqLimit = req.query.limit;
+    const reqStatus = req.query.status;
+    const reqCurrency = req.query.currency.toString().toUpperCase(); // Full name, not symbol!
+    
+    /*
+     * Following sort methods are availabe:
+     *  - 'newest' (DESC)   -> This will show the newest transactions first.
+     *  - 'oldest' (ASC)    -> This will show the oldest transactions first.
+     *  - 'biggest' (DESC)  -> This will show the biggest transcations by amount first.
+     *  - 'smallest' (ASC)  -> This will show the smallest transcations by amount first.
+     */
+    let reqSort = req.query.sort;
 
-    if (skip === undefined) skip = '0';
-    if (limit === undefined || Number(limit) > 100) limit = '100';
-    if (sortQuery !== undefined) {
-        if (sortQuery === 'newest') sort = -1;
-        else if (sortQuery === 'newest') sort = 1;
+    let querySort = {};
+    let queryStatus = {};
+
+    if (reqSkip === undefined) reqSkip = '0';
+    if (reqLimit === undefined || Number(reqLimit) > 100) reqLimit = '100';
+    if (reqSort !== undefined) {
+        if (reqSort === 'newest') querySort = { createdAt: -1 };
+        else if (reqSort === 'oldest') querySort = { createdAt: 1 };
+        else if (reqSort === 'biggest') querySort = { totalPrice: -1 }
+        else if (reqSort === 'smallest') querySort = { totalPrice: 1 }
         else {
-            res.status(400).send({ message: 'Unkown sort parameter. "sort" can only be "newest" or "oldest"' });
+            res.status(400).send({ message: 'Unkown sort parameter. "sort" can only be "newest", "oldest", "biggest" or "smallest".' });
             return;
         }
     }
 
-    const invoices = await Invoice.find({})
-        .limit(Number(limit))
-        .skip(Number(skip))
-        .sort({ createdAt: sort });
+    const invoices = Invoice.find({}, { cart: 0, dueBy: 0, successUrl: 0, cancelUrl: 0, paymentMethods: 0 })
+        .limit(Number(reqLimit))
+        .skip(Number(reqSkip))
+        .sort(querySort);
 
-    res.status(200).send(invoices);
+    if (reqStatus !== undefined) {
+        if (reqStatus === 'paid') queryStatus = { status: PaymentStatus.DONE }
+        else if (reqStatus === 'pending') queryStatus = { status: PaymentStatus.PENDING }
+        else if (reqStatus === 'unconfirmed') queryStatus = { status: PaymentStatus.UNCONFIRMED }
+        else if (reqStatus === 'failed') queryStatus = { status: [PaymentStatus.CANCELLED, PaymentStatus.TOOLATE, PaymentStatus.TOOLITTLE] }
+        else {
+            res.status(400).send({ message: 'Unkown status parameter. "status" can only be "paid", "pending", "failed" or "unconfirmed".' });
+            return;
+        }
+
+        invoices.where(queryStatus);
+    }
+
+    if (reqCurrency !== undefined) {        
+        if (Object.keys(CryptoUnits).indexOf(reqCurrency) === -1) {
+            res.status(400).send({ message: '"currency" has to be the full name of a supported cryptocurrency: ' + Object.keys(CryptoUnits).join(', ').toLowerCase() });
+            return;
+        }
+
+        invoices.where({ paymentMethod: CryptoUnits[reqCurrency] });
+    }
+
+    res.status(200).send(await invoices.exec());
 }
 
 // GET /invoice/:selector/confirmation
