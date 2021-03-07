@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import got from 'got';
-import { Query } from 'mongoose';
 import { config } from '../../config';
 
 import { invoiceManager, INVOICE_SECRET, logger, providerManager } from '../app';
@@ -30,6 +29,7 @@ export async function createInvoice(req: Request, res: Response) {
     const cart: ICart[] = req.body.cart;
     let currency: FiatUnits = req.body.currency;
     let totalPrice: number = req.body.totalPrice;
+    let customSelector: string = req.body.selector;
 
     if (successUrl === undefined) {
         res.status(400).send({ message: '"successUrl" is not provided!' });
@@ -88,10 +88,10 @@ export async function createInvoice(req: Request, res: Response) {
         paymentMethods.push({ exRate, method: coin, amount: roundNumber(totalPrice / exRate, decimalPlaces.get(coin))});
     });
 
-    const dueBy = new Date(Date.now() + 1000 * 60 * 5);    
+    const dueBy = new Date(Date.now() + 1000 * 60 * 30);
     
     Invoice.create({
-        selector: randomString(32),
+        selector: customSelector === undefined ? randomString(32) : customSelector,
         paymentMethods,
         successUrl,
         cancelUrl,
@@ -124,12 +124,13 @@ export async function getInvoice(req: Request, res: Response) {
     // If an id is provided
     if (selector !== undefined) {
         const invoice: IInvoice = await Invoice.findOne({ selector: selector });
+        
         if (invoice === null) {
             res.status(404).send();
             return;
         }
 
-        res.status(200).send(invoice);
+        res.status(200).send(invoice.toJSON({ virtuals: true }));
 
         return;
     }
@@ -137,7 +138,7 @@ export async function getInvoice(req: Request, res: Response) {
     let reqSkip = req.query.skip;
     let reqLimit = req.query.limit;
     const reqStatus = req.query.status;
-    const reqCurrency = req.query.currency.toString().toUpperCase(); // Full name, not symbol!
+    const reqCurrency = req.query.currency; // Full name, not symbol!
     
     /*
      * Following sort methods are availabe:
@@ -183,12 +184,12 @@ export async function getInvoice(req: Request, res: Response) {
     }
 
     if (reqCurrency !== undefined) {        
-        if (Object.keys(CryptoUnits).indexOf(reqCurrency) === -1) {
+        if (Object.keys(CryptoUnits).indexOf(reqCurrency.toString().toUpperCase()) === -1) {
             res.status(400).send({ message: '"currency" has to be the full name of a supported cryptocurrency: ' + Object.keys(CryptoUnits).join(', ').toLowerCase() });
             return;
         }
 
-        invoices.where({ paymentMethod: CryptoUnits[reqCurrency] });
+        invoices.where({ paymentMethod: CryptoUnits[reqCurrency.toString().toUpperCase()] });
     }
 
     res.status(200).send(await invoices.exec());
@@ -251,6 +252,11 @@ export async function setPaymentMethod(req: Request, res: Response) {
     const invoice = await Invoice.findOne({ selector: selector });
     if (invoice === null) {
         res.status(404).send();
+        return;
+    }
+
+    if (invoice.paymentMethod !== undefined) {
+        res.status(409).send({ message: 'The payment method has already been set.' });
         return;
     }
 

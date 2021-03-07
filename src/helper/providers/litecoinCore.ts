@@ -87,6 +87,10 @@ export class Provider implements BackendProvider {
         });
     }
 
+    getBlockExplorerLink(txId: string) {
+        return new URL(`https://litecoinblockexplorer.net/tx/${txId}`);
+    }
+
     private async decodeRawTransaction(rawTx: string): Promise<IRawTransaction> {
         return new Promise<IRawTransaction>((resolve, reject) => {
             this.rpcClient.request('decoderawtransaction', [rawTx], (err, decoded) => {
@@ -159,6 +163,20 @@ export class Provider implements BackendProvider {
 
             res.txids.forEach(async tx => {
                 invoiceManager.validatePayment(invoice, tx);
+            });
+        });
+    }
+
+    async isTestnet() {
+        return new Promise<boolean>((resolve, reject) => {
+            this.rpcClient.request('getblockchaininfo', [], async (err, message) => {
+                if (err) {
+                    logger.error(`There was an error while getting all blockchain information: ${err.message}`);
+                    reject(err.message);
+                    return;
+                }
+    
+                resolve(message.result.chain !== 'main');
             });
         });
     }

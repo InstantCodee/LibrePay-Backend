@@ -35,7 +35,7 @@ export class ProviderManager {
 
                     provider.CRYPTO.forEach(crypto => {
                         if (this.cryptoProvider.has(crypto)) {
-                            logger.warn(`Provider ${provider.NAME} will not be activated for ${provider.CRYPTO} since there is already another provider in place!`);
+                            logger.warn(`Provider ${provider.NAME} will not be activated for ${provider.CRYPTO} since there is already another provider in place.`);
                         } else {
                             this.cryptoProvider.set(crypto, provider);
                             config.payment.methods.push(crypto);
@@ -45,7 +45,8 @@ export class ProviderManager {
                     // Execute onEnable() function of this provider
                     try {
                         await provider.onEnable();
-                        logger.info(`Loaded provider "${provider.NAME}" by ${provider.AUTHOR} (${provider.VERSION}) for ${provider.CRYPTO.join(', ')}`);
+                        logger.info(`Loaded provider "${provider.NAME}" by ${provider.AUTHOR} (${provider.VERSION}) for ${provider.CRYPTO.join(', ')}` +
+                        (await provider.isTestnet() ? ' (running in testnet mode)' : ''));
                     } catch (err) {
                         logger.error(`Provider "${provider.NAME}" by ${provider.AUTHOR} (${provider.VERSION}) failed to start: ${err}`);
                         this.disable(provider);

@@ -41,6 +41,12 @@ export abstract class BackendProvider {
     abstract getTransaction(txId: string, context?: IInvoice): Promise<ITransaction | null>;
 
     /**
+     * This function returns a valid link pointing to a online block explorer.
+     * @param txId Transaction to generate link for.
+     */
+    abstract getBlockExplorerLink?(txId: string): URL;
+
+    /**
      * Decode a raw transcation that was broadcasted in the network.
      * @param rawTx Raw transcation
      * @returns See https://developer.bitcoin.org/reference/rpc/decoderawtransaction.html for reference
@@ -78,6 +84,14 @@ export abstract class BackendProvider {
      * *Mainly used when LibrePay starts.*
      */
     abstract validateInvoice(invoices: IInvoice): void;
+
+    /**
+     * If this function returns true, then this provider runs in testnet mode.
+     * 
+     * *Note: Some currencies like Monero have a testnet and stagenet and others coins might call it different. 
+     * In that case both things a meant. This just indicates if it's **not the mainnet**.*
+     */
+    abstract isTestnet(): Promise<boolean>;
 }
 
 export interface ITransactionDetails {

@@ -119,6 +119,10 @@ export class Provider implements BackendProvider {
         });
     }
 
+    getBlockExplorerLink(txId: string) {
+        return new URL(`https://www.exploremonero.com/transaction/${txId}`);
+    }
+
     sendToAddress(
         recipient: string,
         amount: number,
@@ -208,5 +212,13 @@ export class Provider implements BackendProvider {
      */
     private decimalToFloat(int: number) {
         return int / 1000000000000;
+    }
+
+    async isTestnet() {
+        return new Promise<boolean>((resolve, reject) => {
+            // We can only tell if we're running on a testnet/stagenet chain if we have a direct
+            // connection with the daemon which doesn't exist (yet). TODO
+            resolve(false);
+        });
     }
 }

@@ -1,5 +1,5 @@
 import { Schema } from 'mongoose';
-import { invoiceManager, socketManager } from '../../app';
+import { invoiceManager, logger, providerManager, socketManager } from '../../app';
 import { CryptoUnits, FiatUnits, PaymentStatus } from '../../helper/types';
 import { ICart, IInvoice } from './invoice.interface';
 
@@ -40,6 +40,25 @@ const schemaInvoice = new Schema({
     versionKey: false
 });
 
+// Create virutal field that contains a link to a block explorer defined in provider
+schemaInvoice.virtual('transactionLink').get(function() {
+    let self = this as IInvoice;
+
+    // Stop if this invoice does not have an tx id yet.
+    if (self.transcationHash === undefined) return null;
+
+    const provider = providerManager.getProvider(self.paymentMethod);
+
+    if (provider === undefined) return null;
+
+    // Check if provider supports this function
+    if (provider.getBlockExplorerLink !== undefined) {
+        return provider.getBlockExplorerLink(self.transcationHash).toString();
+    }
+
+    return null;
+});
+
 schemaInvoice.pre('validate', function(next) {
     let self = this as IInvoice;
     self.currency = FiatUnits[self.currency];
@@ -67,6 +86,8 @@ function updateStatus(doc: IInvoice, next) {
     if (doc.status < 0) {
         invoiceManager.removeInvoice(doc);
     }
+
+    logger.debug(`New invoice has been created: ${doc.id}`);
 
     next();
 }
