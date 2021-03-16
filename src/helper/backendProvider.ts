@@ -92,6 +92,16 @@ export abstract class BackendProvider {
      * In that case both things a meant. This just indicates if it's **not the mainnet**.*
      */
     abstract isTestnet(): Promise<boolean>;
+
+    /**
+     * This function takes any address and will return true if this address is
+     * part of the testnet and false if mainnet.
+     * 
+     * *Note: Different chains are currently not supported. If you for example have a stagenet or regtest
+     * then consider it the same as a testnet.*
+     * @param address Address to check if testnet or not.
+     */
+    abstract isTestnetAddress(address: string): boolean;
 }
 
 export interface ITransactionDetails {

@@ -31,8 +31,10 @@ const schemaInvoice = new Schema({
     dueBy: { type: Date, required: true },
     status: { type: Number, enum: Object.values(PaymentStatus), default: PaymentStatus.REQUESTED },
     email: { type: String, required: false },
-    successUrl: { type: String, match: urlRegex, required: false },
-    cancelUrl: { type: String, match: urlRegex, required: false }
+    successUrl: { type: String, match: urlRegex, required: true },
+    cancelUrl: { type: String, match: urlRegex, required: true },
+    failUrl: { type: String, match: urlRegex, required: true },
+    redirectTo: { type: String, match: urlRegex, required: true }
 }, {
     timestamps: {
         createdAt: true,
@@ -57,6 +59,15 @@ schemaInvoice.virtual('transactionLink').get(function() {
     }
 
     return null;
+});
+
+schemaInvoice.virtual('testnet').get(function() {
+    let self = this as IInvoice;
+
+    const provider = providerManager.getProvider(self.paymentMethod);
+    if (provider === undefined) return false;
+
+    return provider.isTestnetAddress(self.receiveAddress);
 });
 
 schemaInvoice.pre('validate', function(next) {
@@ -86,8 +97,6 @@ function updateStatus(doc: IInvoice, next) {
     if (doc.status < 0) {
         invoiceManager.removeInvoice(doc);
     }
-
-    logger.debug(`New invoice has been created: ${doc.id}`);
 
     next();
 }

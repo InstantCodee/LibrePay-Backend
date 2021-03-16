@@ -25,7 +25,9 @@ export async function createInvoice(req: Request, res: Response) {
     }
 
     const successUrl: string = req.body.successUrl;
+    const failUrl: string = req.body.failUrl;
     const cancelUrl: string = req.body.cancelUrl;
+    const redirectTo: string = req.body.redirectTo;
     const cart: ICart[] = req.body.cart;
     let currency: FiatUnits = req.body.currency;
     let totalPrice: number = req.body.totalPrice;
@@ -36,8 +38,18 @@ export async function createInvoice(req: Request, res: Response) {
         return;
     }
 
+    if (failUrl === undefined) {
+        res.status(400).send({ message: '"failUrl" is not provided!' });
+        return;
+    }
+
     if (cancelUrl === undefined) {
         res.status(400).send({ message: '"cancelUrl" is not provided!' });
+        return;
+    }
+
+    if (redirectTo === undefined) {
+        res.status(400).send({ message: '"redirectTo" is not provided!' });
         return;
     }
 
@@ -94,7 +106,9 @@ export async function createInvoice(req: Request, res: Response) {
         selector: customSelector === undefined ? randomString(32) : customSelector,
         paymentMethods,
         successUrl,
+        failUrl,
         cancelUrl,
+        redirectTo,
         cart,
         currency,
         totalPrice,
@@ -130,7 +144,11 @@ export async function getInvoice(req: Request, res: Response) {
             return;
         }
 
-        res.status(200).send(invoice.toJSON({ virtuals: true }));
+        const final = invoice.toJSON({ virtuals: true });
+        final.successUrl = undefined;
+        final.cancelUrl = undefined;
+        final.failUrl = undefined;
+        res.status(200).send(final);
 
         return;
     }
@@ -231,6 +249,14 @@ export async function cancelInvoice(req: Request, res: Response) {
 
     invoice.status = PaymentStatus.CANCELLED;
     await invoice.save();
+
+    // Notify merchant about status change by calling the callback.
+    const request = await got.get(invoice.cancelUrl);
+    if (request.statusCode !== 200) {
+        logger.error(`Cancel callback ${invoice.cancelUrl} for invoice ${invoice.id} failed with ${request.statusCode}!`);
+        return;
+    }
+
     return;
 }
 

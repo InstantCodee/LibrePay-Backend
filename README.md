@@ -48,7 +48,7 @@ All that is left to do now is to install the [offical frontend](https://github.c
 ### 1.2.2. Docker install
 A offical docker image is **coming soon**.
 
-### 2. Crypto providers
+## 2. Crypto providers
 LibrePay makes it very easy for others to implement there own cryptocurrency. You miss one? Maybe an online or offline version of a currency? Just add it yourself or ask us if you're unfamiliar with programming.
 
 ### 2.1. Setup

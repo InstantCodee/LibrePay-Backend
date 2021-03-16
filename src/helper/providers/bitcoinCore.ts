@@ -131,22 +131,25 @@ export class Provider implements BackendProvider {
             const rawtx = msg.toString('hex');
             const tx = await this.decodeRawTransaction(rawtx);
 
-            tx.vout.forEach(output => {                                    
-                // Loop over each output and check if the address of one matches the one of an invoice.
-                invoiceManager.getPendingInvoices().filter(item => { return item.paymentMethod === CryptoUnits.BITCOIN }).forEach(async invoice => {   
-                    if (output.scriptPubKey.addresses === undefined) return;    // Sometimes (weird) transaction don't have any addresses
-
-                    logger.debug(`${output.scriptPubKey.addresses} <-> ${invoice.receiveAddress}`);
-                    // We found our transaction (https://developer.bitcoin.org/reference/rpc/decoderawtransaction.html)
-                    if (output.scriptPubKey.addresses.indexOf(invoice.receiveAddress) !== -1) {
-                        logger.info(`Transcation for invoice ${invoice.id} received! (${tx.hash})`);
-
-                        // Change state in database
-                        invoiceManager.validatePayment(invoice, tx.txid);
-                    }
-                })
-            }); 
-            
+            try {
+                tx.vout.forEach(output => {                                    
+                    // Loop over each output and check if the address of one matches the one of an invoice.
+                    invoiceManager.getPendingInvoices().filter(item => { return item.paymentMethod === CryptoUnits.BITCOIN }).forEach(async invoice => {   
+                        if (output.scriptPubKey.addresses === undefined) return;    // Sometimes (weird) transaction don't have any addresses
+    
+                        logger.debug(`${output.scriptPubKey.addresses} <-> ${invoice.receiveAddress}`);
+                        // We found our transaction (https://developer.bitcoin.org/reference/rpc/decoderawtransaction.html)
+                        if (output.scriptPubKey.addresses.indexOf(invoice.receiveAddress) !== -1) {
+                            logger.info(`Transcation for invoice ${invoice.id} received! (${tx.hash})`);
+    
+                            // Change state in database
+                            invoiceManager.validatePayment(invoice, tx.txid);
+                        }
+                    })
+                }); 
+            } catch (err) {
+                logger.error(`An error occured while looping though all outputs: ${err.message}`);
+            }
         }
     }
     
@@ -180,6 +183,10 @@ export class Provider implements BackendProvider {
                 resolve(message.result.chain !== 'main');
             });
         });
+    }
+
+    isTestnetAddress(address: string) {
+        return address.startsWith('tb1');
     }
 }
 

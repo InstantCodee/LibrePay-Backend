@@ -221,4 +221,8 @@ export class Provider implements BackendProvider {
             resolve(false);
         });
     }
+
+    isTestnetAddress(address: string) {
+        return address.startsWith('5') || address.startsWith('7');
+    }
 }

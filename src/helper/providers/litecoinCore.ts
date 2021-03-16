@@ -180,5 +180,9 @@ export class Provider implements BackendProvider {
             });
         });
     }
+
+    isTestnetAddress(address: string) {
+        return address.startsWith('m') || address.startsWith('2') || address.startsWith('Q');
+    }
 }
 

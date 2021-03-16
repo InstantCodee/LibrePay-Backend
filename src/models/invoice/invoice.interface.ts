@@ -55,6 +55,8 @@ export interface IInvoice extends Document {
 
     successUrl: string;
     cancelUrl: string;
+    failUrl: string;
+    redirectTo: string;
 
     createdAt?: number;
 }

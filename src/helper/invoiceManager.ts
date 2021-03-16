@@ -1,3 +1,4 @@
+import got from 'got/dist/source';
 import { logger, providerManager, socketManager } from '../app';
 import { IInvoice } from '../models/invoice/invoice.interface';
 import { Invoice } from '../models/invoice/invoice.model';
@@ -154,6 +155,13 @@ export class InvoiceManager {
 
                 await invoice.save(); // This will trigger a post save hook that will notify the user.
                 this.removeInvoice(invoice);
+
+                // Notify merchant about status change by calling the callback.
+                const request = await got.get(invoice.successUrl);
+                if (request.statusCode !== 200) {
+                    logger.error(`Success callback ${invoice.successUrl} for invoice ${invoice.id} failed with ${request.statusCode}!`);
+                    return;
+                }
             }
         }
     }
@@ -216,6 +224,13 @@ export class InvoiceManager {
             invoice.status = PaymentStatus.TOOLITTLE;
 
             await invoice.save();
+
+            // Notify merchant about status change by calling the callback.
+            const request = await got.get(invoice.failUrl);
+            if (request.statusCode !== 200) {
+                logger.error(`Fail callback ${invoice.failUrl} for invoice ${invoice.id} failed with ${request.statusCode}!`);
+                return;
+            }
 
             return;
         }

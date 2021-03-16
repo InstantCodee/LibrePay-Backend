@@ -14,6 +14,6 @@ invoiceRouter.get('/:selector/confirmation', getConfirmation);
 invoiceRouter.post('/:selector/setmethod', setPaymentMethod);
 
 invoiceRouter.get('/', MW_User, getInvoice);
-invoiceRouter.post('/', MW_User, createInvoice);
+invoiceRouter.post('/', createInvoice);
 
 export { invoiceRouter };
