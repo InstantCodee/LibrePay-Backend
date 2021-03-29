@@ -1,8 +1,8 @@
-import { Request, Response } from 'express';
+import { Request, response, Response } from 'express';
 import got from 'got';
 import { config } from '../../config';
 
-import { invoiceManager, INVOICE_SECRET, logger, providerManager } from '../app';
+import { eventManager, invoiceManager, INVOICE_SECRET, logger, providerManager } from '../app';
 import { randomString } from '../helper/crypto';
 import { CryptoUnits, decimalPlaces, FiatUnits, findCryptoBySymbol, PaymentStatus, roundNumber } from '../helper/types';
 import { ICart, IInvoice, IPaymentMethod } from '../models/invoice/invoice.interface';
@@ -255,17 +255,8 @@ export async function cancelInvoice(req: Request, res: Response) {
         return;
     }
 
-    invoice.status = PaymentStatus.CANCELLED;
-    await invoice.save();
-
-    // Notify merchant about status change by calling the callback.
-    const request = await got.get(invoice.cancelUrl);
-    if (request.statusCode !== 200) {
-        logger.error(`Cancel callback ${invoice.cancelUrl} for invoice ${invoice.id} failed with ${request.statusCode}!`);
-        return;
-    }
-
-    return;
+    invoiceManager.cancelInvoice(invoice);
+    res.status(200).send();
 }
 
 // POST /invoice/:selector/setmethod
@@ -299,6 +290,13 @@ export async function setPaymentMethod(req: Request, res: Response) {
     res.status(200).send({
         receiveAddress: invoice.receiveAddress
     });
+}
+
+/**
+ * This function opens a one-way connection that stays open. It's very similar to WebSockets.
+ */
+export async function invoiceEvents(req: Request, res: Response) {
+    eventManager.join(req.params.selector, res);
 }
 
 // GET /invoice/paymentmethods

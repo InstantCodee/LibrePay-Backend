@@ -1,5 +1,5 @@
 import { Schema } from 'mongoose';
-import { invoiceManager, logger, providerManager, socketManager } from '../../app';
+import { eventManager, invoiceManager, logger, providerManager } from '../../app';
 import { CryptoUnits, FiatUnits, findCryptoBySymbol, PaymentStatus } from '../../helper/types';
 import { ICart, IInvoice } from './invoice.interface';
 
@@ -94,7 +94,7 @@ schemaInvoice.post('validate', function (doc, next) {
 
 // Remove invoice from invoice manager because a negative status is always final.
 schemaInvoice.post('save', function (doc: IInvoice, next) {
-    socketManager.emitInvoiceEvent(doc, 'status', doc.status);
+    eventManager.push('status', { status: doc.status }, doc.selector);
 
     // If a status has a negative value, then this invoice has failed.
     if (doc.status < 0) {

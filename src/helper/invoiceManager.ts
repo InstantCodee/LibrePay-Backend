@@ -1,5 +1,5 @@
 import got from 'got/dist/source';
-import { logger, providerManager, socketManager } from '../app';
+import { eventManager, logger, providerManager } from '../app';
 import { IInvoice } from '../models/invoice/invoice.interface';
 import { Invoice } from '../models/invoice/invoice.model';
 import { CryptoUnits, PaymentStatus } from './types';
@@ -18,7 +18,7 @@ export class InvoiceManager {
         this.knownConfirmations = new Map<string, number>();
 
         // Get all pending and unconfirmed transcations
-        Invoice.find({ $or: [ { status: PaymentStatus.PENDING }, { status: PaymentStatus.UNCONFIRMED } ]}).then(invoices => {
+        Invoice.find({ $or: [{ status: PaymentStatus.PENDING }, { status: PaymentStatus.UNCONFIRMED }] }).then(invoices => {
             logger.info(`There are ${invoices.length} invoices that are pending or unconfirmed`);
 
             invoices.forEach(invoice => {
@@ -51,9 +51,9 @@ export class InvoiceManager {
             // Find invoices that are pending or requested and reached there EOF date
             const expiredInvoices = await Invoice.find({
                 dueBy: { $lte: new Date() },
-                $or: [ { status: PaymentStatus.PENDING }, { status: PaymentStatus.REQUESTED } ]
+                $or: [{ status: PaymentStatus.PENDING }, { status: PaymentStatus.REQUESTED }]
             });
-            
+
             expiredInvoices.forEach(async eInvoice => {
                 eInvoice.status = PaymentStatus.TOOLATE;
                 await eInvoice.save();
@@ -80,6 +80,11 @@ export class InvoiceManager {
         }
     }
 
+    /**
+     * Remove a invoice from the local watch list.
+     * 
+     * **Note:** It will not cancel the invoice! Use `cancelInvoice(...)` instead.
+     */
     removeInvoice(invoice: IInvoice) {
         if (this.unconfirmedTranscations.indexOf(invoice) != -1) this.unconfirmedTranscations.splice(this.unconfirmedTranscations.indexOf(invoice), 1);
         if (this.pendingInvoices.indexOf(invoice) != -1) this.pendingInvoices.splice(this.pendingInvoices.indexOf(invoice), 1);
@@ -100,6 +105,27 @@ export class InvoiceManager {
         this.knownConfirmations.set(invoice.id, 0);
         invoice.status = PaymentStatus.UNCONFIRMED;
         invoice.save();
+    }
+
+    /**
+     * This will mark a invoice as cancelled.
+     */
+    async cancelInvoice(invoice: IInvoice) {
+        invoice.status = PaymentStatus.CANCELLED;
+        await invoice.save();
+
+        this.removeInvoice(invoice);
+
+        // Notify merchant about status change by calling the callback.
+        const request = await got.get(invoice.cancelUrl);
+        try {
+            if (request.statusCode !== 200) {
+                logger.error(`Cancel callback ${invoice.cancelUrl} for invoice ${invoice.id} failed with ${request.statusCode}!`);
+                return;
+            }
+        } catch (err) {
+            logger.error(`Seems like the cancel callback (${invoice.cancelUrl}) of ${invoice.id} is not reachable.`);
+        }
     }
 
     getPendingInvoices() {
@@ -137,15 +163,15 @@ export class InvoiceManager {
      * 
      * If the confirmation count is treated as "trusted", then the invoice will be completed.
      */
-    async setConfirmationCount(invoice: IInvoice, count: number) {        
+    async setConfirmationCount(invoice: IInvoice, count: number) {
         if (this.hasConfirmationChanged(invoice, count)) {
             this.knownConfirmations.set(invoice.id, count);
-            socketManager.emitInvoiceEvent(invoice, 'confirmationUpdate', { count });
+            eventManager.push('confirmationUpdate', { count }, invoice.selector);
 
             if (count > 2) {
                 logger.info(`Transaction (${invoice.transcationHash}) has reached more then 2 confirmations and can now be trusted!`);
                 const sentFunds = (await providerManager.getProvider(invoice.paymentMethod).getTransaction(invoice.transcationHash, invoice)).amount;
-                
+
                 // This transaction sent more then requested funds
                 if (sentFunds > this.getPriceByInvoice(invoice)) {
                     invoice.status = PaymentStatus.TOOMUCH;
@@ -157,10 +183,14 @@ export class InvoiceManager {
                 this.removeInvoice(invoice);
 
                 // Notify merchant about status change by calling the callback.
-                const request = await got.get(invoice.successUrl);
-                if (request.statusCode !== 200) {
-                    logger.error(`Success callback ${invoice.successUrl} for invoice ${invoice.id} failed with ${request.statusCode}!`);
-                    return;
+                try {
+                    const request = await got.get(invoice.successUrl);
+                    if (request.statusCode !== 200) {
+                        logger.error(`Success callback ${invoice.successUrl} for invoice ${invoice.id} failed with ${request.statusCode}!`);
+                        return;
+                    }
+                } catch (err) {
+                    logger.error(`Seems like the success callback (${invoice.successUrl}) of ${invoice.id} is not reachable.`);
                 }
             }
         }
@@ -181,7 +211,7 @@ export class InvoiceManager {
                     return;
 
                 }
-                
+
                 const provider = providerManager.getProvider(invoice.paymentMethod);
                 const tx = await provider.getTransaction(transcation, invoice);
                 this.setConfirmationCount(invoice, tx.confirmations);
@@ -203,7 +233,7 @@ export class InvoiceManager {
         }
 
         const txInfo = await providerManager.getProvider(invoice.paymentMethod).getTransaction(tx, invoice);
-        
+
         const price = this.getPriceByInvoice(invoice);
         if (price === 0) return;
 

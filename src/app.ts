@@ -14,8 +14,8 @@ import { InvoiceManager } from './helper/invoiceManager';
 import { User } from './models/user/user.model';
 import { invoiceRouter } from './routes/invoice';
 import { userRouter } from './routes/user';
-import { SocketManager } from './helper/socketio';
 import { ProviderManager } from './helper/providerManager';
+import { EventManager } from './helper/eventManager';
 
 // Load .env
 dconfig({ debug: true, encoding: 'UTF-8' });
@@ -26,8 +26,8 @@ export const JWT_SECRET = process.env.JWT_SECRET || "";
 export const INVOICE_SECRET = process.env.INVOICE_SECRET || "";
 
 export let invoiceManager: InvoiceManager | undefined = undefined;
-export let socketManager: SocketManager | undefined = undefined;
 export let providerManager: ProviderManager = undefined;
+export let eventManager: EventManager = undefined;
 
 export let logger: winston.Logger;
 
@@ -114,13 +114,10 @@ async function run() {
     });
 
     invoiceManager = new InvoiceManager();
+    eventManager = new EventManager();
     
     const app = express();
     const http = new Server(app);
-
-    // Socket.io
-    const io = new socketio(http);
-    socketManager = new SocketManager(io);
 
     app.use(express.json());
     app.use(cors());
