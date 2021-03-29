@@ -1,6 +1,6 @@
 import { Schema } from 'mongoose';
 import { invoiceManager, logger, providerManager, socketManager } from '../../app';
-import { CryptoUnits, FiatUnits, PaymentStatus } from '../../helper/types';
+import { CryptoUnits, FiatUnits, findCryptoBySymbol, PaymentStatus } from '../../helper/types';
 import { ICart, IInvoice } from './invoice.interface';
 
 const urlRegex = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[\-;:&=\+\$,\w]+@)?[A-Za-z0-9\.\-]+|(?:www\.|[\-;:&=\+\$,\w]+@)[A-Za-z0-9\.\-]+)((?:\/[\+~%\/\.\w\-_]*)?\??(?:[\-\+=&;%@\.\w_]*)#?(?:[\.\!\/\\\w]*))?)/
@@ -64,6 +64,8 @@ schemaInvoice.virtual('transactionLink').get(function() {
 schemaInvoice.virtual('testnet').get(function() {
     let self = this as IInvoice;
 
+    if (self.receiveAddress === undefined) return false;
+
     const provider = providerManager.getProvider(self.paymentMethod);
     if (provider === undefined) return false;
 
@@ -90,7 +92,8 @@ schemaInvoice.post('validate', function (doc, next) {
     next();
 });
 
-function updateStatus(doc: IInvoice, next) {
+// Remove invoice from invoice manager because a negative status is always final.
+schemaInvoice.post('save', function (doc: IInvoice, next) {
     socketManager.emitInvoiceEvent(doc, 'status', doc.status);
 
     // If a status has a negative value, then this invoice has failed.
@@ -99,9 +102,20 @@ function updateStatus(doc: IInvoice, next) {
     }
 
     next();
-}
+});
 
-schemaInvoice.post('save', updateStatus);
+export async function setMethod(invoice: IInvoice, method: CryptoUnits) {
+    console.log('Method:', method);
+    invoice.status = PaymentStatus.PENDING;
+    invoice.paymentMethod = method;
+    invoice.receiveAddress = await providerManager.getProvider(method).getNewAddress();
+
+    await invoice.save();
+    
+    invoiceManager.addInvoice(invoice);
+
+    return invoice;
+}
 
 export function calculateCart(cart: ICart[]): number {
     let totalPrice = 0;

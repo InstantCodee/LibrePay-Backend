@@ -7,7 +7,7 @@ import { randomString } from '../helper/crypto';
 import { CryptoUnits, decimalPlaces, FiatUnits, findCryptoBySymbol, PaymentStatus, roundNumber } from '../helper/types';
 import { ICart, IInvoice, IPaymentMethod } from '../models/invoice/invoice.interface';
 import { Invoice } from '../models/invoice/invoice.model';
-import { calculateCart } from '../models/invoice/invoice.schema';
+import { calculateCart, setMethod } from '../models/invoice/invoice.schema';
 
 // POST /invoice/?sercet=XYZ
 export async function createInvoice(req: Request, res: Response) {
@@ -101,8 +101,11 @@ export async function createInvoice(req: Request, res: Response) {
     });
 
     const dueBy = new Date(Date.now() + 1000 * 60 * 30);
+
+    // If this is true, then there is just one crypto enabled so we just default to it.
+    const defaultCrypto = config.payment.methods.length === 1;
     
-    Invoice.create({
+    const newInvoice = new Invoice({
         selector: customSelector === undefined ? randomString(32) : customSelector,
         paymentMethods,
         successUrl,
@@ -113,11 +116,16 @@ export async function createInvoice(req: Request, res: Response) {
         currency,
         totalPrice,
         dueBy
-    }, (error, invoice: IInvoice) => {
+    });
+
+    newInvoice.save(async (error, invoice: IInvoice) => {
         if (error) {
             res.status(500).send({message: error.message});
             return;
         }
+
+        if (defaultCrypto)
+            invoice = await setMethod(invoice, config.payment.methods[0]);
 
         //invoiceScheduler.addInvoice(invoice);
         //res.status(200).send({ id: invoice.selector });
@@ -275,7 +283,7 @@ export async function setPaymentMethod(req: Request, res: Response) {
         return;
     }
 
-    const invoice = await Invoice.findOne({ selector: selector });
+    let invoice = await Invoice.findOne({ selector: selector });
     if (invoice === null) {
         res.status(404).send();
         return;
@@ -286,13 +294,7 @@ export async function setPaymentMethod(req: Request, res: Response) {
         return;
     }
 
-    invoice.status = PaymentStatus.PENDING;
-    invoice.paymentMethod = CryptoUnits[findCryptoBySymbol(method)];
-    invoice.receiveAddress = await providerManager.getProvider(invoice.paymentMethod).getNewAddress();
-
-    await invoice.save();
-    
-    invoiceManager.addInvoice(invoice)
+    invoice = await setMethod(invoice, CryptoUnits[findCryptoBySymbol(method)]);
 
     res.status(200).send({
         receiveAddress: invoice.receiveAddress
