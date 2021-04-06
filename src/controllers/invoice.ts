@@ -4,7 +4,7 @@ import { config } from '../../config';
 
 import { eventManager, invoiceManager, INVOICE_SECRET, logger, providerManager } from '../app';
 import { randomString } from '../helper/crypto';
-import { CryptoUnits, decimalPlaces, FiatUnits, findCryptoBySymbol, PaymentStatus, roundNumber } from '../helper/types';
+import { coinGeckoNames, CryptoUnits, decimalPlaces, FiatUnits, findCryptoBySymbol, PaymentStatus, roundNumber } from '../helper/types';
 import { ICart, IInvoice, IPaymentMethod } from '../models/invoice/invoice.interface';
 import { Invoice } from '../models/invoice/invoice.model';
 import { calculateCart, setMethod } from '../models/invoice/invoice.schema';
@@ -75,11 +75,7 @@ export async function createInvoice(req: Request, res: Response) {
     let cgFormat = [];
 
     config.payment.methods.forEach(coin => {
-        const crypto = findCryptoBySymbol(coin);
-        
-        if (crypto !== undefined) {
-            cgFormat.push(crypto.toLowerCase());
-        }
+        cgFormat.push(coinGeckoNames.getValue(coin));
     });
     
     const request = await got.get(`https://api.coingecko.com/api/v3/simple/price?ids=${cgFormat.join(',')}&vs_currencies=${currency.toLowerCase()}`, {
@@ -94,10 +90,16 @@ export async function createInvoice(req: Request, res: Response) {
     let paymentMethods: IPaymentMethod[] = [];
     
     cgFormat.forEach(coinFullName => {
-        const coin = CryptoUnits[coinFullName.toUpperCase()];
-        const exRate = Number(request.body[coinFullName][currency.toLowerCase()]);
-
-        paymentMethods.push({ exRate, method: coin, amount: roundNumber(totalPrice / exRate, decimalPlaces.get(coin))});
+        try {
+            const coin = coinGeckoNames.getKey(coinFullName);
+            const exRate = Number(request.body[coinFullName][currency.toLowerCase()]);
+    
+            paymentMethods.push({ exRate, method: coin, amount: roundNumber(totalPrice / exRate, decimalPlaces.get(coin))});
+        } catch (err) {
+            logger.error(`Unable to get read price for crypocurrency ${coinFullName}: ${err.message}`);
+            res.status(500).send();
+            return;
+        }
     });
 
     const dueBy = new Date(Date.now() + 1000 * 60 * 30);

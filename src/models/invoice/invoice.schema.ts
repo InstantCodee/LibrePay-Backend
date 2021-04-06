@@ -105,7 +105,6 @@ schemaInvoice.post('save', function (doc: IInvoice, next) {
 });
 
 export async function setMethod(invoice: IInvoice, method: CryptoUnits) {
-    console.log('Method:', method);
     invoice.status = PaymentStatus.PENDING;
     invoice.paymentMethod = method;
     invoice.receiveAddress = await providerManager.getProvider(method).getNewAddress();

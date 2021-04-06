@@ -1,4 +1,5 @@
 import { logger } from "../app";
+import { BiMap } from "./lib/bidirectionalmap";
 
 export enum CryptoUnits {
     BITCOIN = 'BTC',
@@ -8,6 +9,18 @@ export enum CryptoUnits {
     DOGECOIN = 'DOGE',
     MONERO = 'XMR'
 }
+
+/**
+ * This map returns the correct name a of specific crypto as the Coin Gecko API requires.
+ */
+export const coinGeckoNames = new BiMap<CryptoUnits, string>([
+    [CryptoUnits.BITCOIN, 'bitcoin'],
+    [CryptoUnits.BITCOINCASH, 'bitcoin-cash'],
+    [CryptoUnits.ETHEREUM, 'ethereum'],
+    [CryptoUnits.LITECOIN, 'litecoin'],
+    [CryptoUnits.DOGECOIN, 'dogecoin'],
+    [CryptoUnits.MONERO, 'monero'],
+]);
 
 /**
  * Get the decimal places by id
