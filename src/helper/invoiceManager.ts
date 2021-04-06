@@ -108,7 +108,7 @@ export class InvoiceManager {
     }
 
     /**
-     * This will mark a invoice as cancelled.
+     * This will mark a invoice as cancelled and it will remove it.
      */
     async cancelInvoice(invoice: IInvoice) {
         invoice.status = PaymentStatus.CANCELLED;
@@ -249,6 +249,8 @@ export class InvoiceManager {
              * For Bitcoin, a transaction can have more then one input and if this is the case, you can never
              * know who the original sender was. Therefore if a customer sent not the right amount, he/she
              * should contact the support of the shop.
+             * 
+             * TODO: Prompt user to provide a address to where the funds should be returned to.
              */
             logger.warning(`Transaction (${tx}) did not sent requested funds. (sent: ${txInfo.amount}, requested: ${price})`);
             invoice.status = PaymentStatus.TOOLITTLE;

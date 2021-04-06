@@ -16,6 +16,7 @@ import { invoiceRouter } from './routes/invoice';
 import { userRouter } from './routes/user';
 import { ProviderManager } from './helper/providerManager';
 import { EventManager } from './helper/eventManager';
+import { dataRouter } from './routes/data';
 
 // Load .env
 dconfig({ debug: true, encoding: 'UTF-8' });
@@ -125,6 +126,7 @@ async function run() {
 
     app.use('/invoice', invoiceRouter);
     app.use('/user', userRouter);
+    app.use('/data', dataRouter);
 
     app.get('/', (req, res) => res.status(200).send('OK'));
 

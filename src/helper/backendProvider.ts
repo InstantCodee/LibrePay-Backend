@@ -47,6 +47,12 @@ export abstract class BackendProvider {
     abstract getBlockExplorerLink?(txId: string): URL;
 
     /**
+     * Check how long a tranaction will take to be confirmed **in present time.**
+     * @param paidFee Fee the user has paid for the transaction.
+     */
+    //abstract estimateConfirmationTime(paidFee: number): IConfirmationEstimation;
+
+    /**
      * Decode a raw transcation that was broadcasted in the network.
      * @param rawTx Raw transcation
      * @returns See https://developer.bitcoin.org/reference/rpc/decoderawtransaction.html for reference
@@ -89,7 +95,7 @@ export abstract class BackendProvider {
      * If this function returns true, then this provider runs in testnet mode.
      * 
      * *Note: Some currencies like Monero have a testnet and stagenet and others coins might call it different. 
-     * In that case both things a meant. This just indicates if it's **not the mainnet**.*
+     * In that case both things are meant. This just indicates if it's **not the mainnet**.*
      */
     abstract isTestnet(): Promise<boolean>;
 
@@ -97,7 +103,7 @@ export abstract class BackendProvider {
      * This function takes any address and will return true if this address is
      * part of the testnet and false if mainnet.
      * 
-     * *Note: Different chains are currently not supported. If you for example have a stagenet or regtest
+     * *Note: Different chains are currently not supported. If you have a stagenet or regtest
      * then consider it the same as a testnet.*
      * @param address Address to check if testnet or not.
      */
@@ -149,4 +155,31 @@ export interface IRawTransaction {
             addresses: string[];
         }
     }[];
+}
+
+export enum IConfirmationEstimation {
+    /**
+     * Unable to estimate how long this transaction will take to be confirmed.
+     */
+    UNKNOWN = -1,
+
+    /**
+     * This transaction is very unlikly to be confirmed in the foreseeable future.
+     */
+    FOREVER = 0,
+
+    /**
+     * This transaction will be confirmed in a **few days**.
+     */
+    LONG = 1,
+
+    /**
+     * This transcation will be confirmed in a **few hours (< 6 hours)**.
+     */
+    AVERAGE = 2,
+
+    /**
+     * This transaction will be confirmed in a **few hours (> 6 hours)**.
+     */
+    FAST = 3
 }
