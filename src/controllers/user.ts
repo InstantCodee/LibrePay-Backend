@@ -75,7 +75,7 @@ export async function loginUser(req: Request, res: Response) {
     // Check if user exists
     if (user == undefined) {
         setTimeout(() => {
-            res.status(404).send({ message: "Either the username or password is wrong." });
+            res.status(401).send({ message: "Either the username or password is wrong." });
         }, Math.random() * 1500 + 400);
         return;
     }
